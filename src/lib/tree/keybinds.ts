@@ -1,12 +1,3 @@
-import {
-  createBindingLookup,
-  type Binding,
-  type BindingConfig,
-  type BindingValue,
-  type KeyEvent,
-  type Renderable,
-  type TuiKeymap,
-} from "@opencode-ai/plugin/tui";
 import type { TreePluginKeybindOverrides, TreePluginKeybindValue } from "../config/plugin";
 
 export const treeKeybindCommands = {
@@ -22,43 +13,39 @@ export const treeKeybindCommands = {
 
 export type TreeKeybindName = keyof typeof treeKeybindCommands;
 export type TreeKeybindCommand = (typeof treeKeybindCommands)[TreeKeybindName];
-export type TreeKeybinds = ReturnType<typeof createTreeKeybinds>;
+export type TreeKeybinds = Readonly<Record<TreeKeybindName, string | false>>;
+export const treeRouteCommands = Object.values(treeKeybindCommands);
 
-export const treeRouteCommands = Object.values(treeKeybindCommands) as TreeKeybindCommand[];
+const treeKeybindDefaults: TreeKeybinds = {
+  move_up: "up,k",
+  move_down: "down,j",
+  jump_up: "shift+up,shift+k",
+  jump_down: "shift+down,shift+j",
+  collapse: "left,h",
+  expand: "right,l",
+  select: "return",
+  back: "escape,ctrl+c",
+};
 
-const treeKeybindDefaults = {
-  [treeKeybindCommands.move_up]: ["up", "k"],
-  [treeKeybindCommands.move_down]: ["down", "j"],
-  [treeKeybindCommands.jump_up]: ["shift+up", "shift+k"],
-  [treeKeybindCommands.jump_down]: ["shift+down", "shift+j"],
-  [treeKeybindCommands.collapse]: ["left", "h"],
-  [treeKeybindCommands.expand]: ["right", "l"],
-  [treeKeybindCommands.select]: "return",
-  [treeKeybindCommands.back]: ["escape", "ctrl+c"],
-} satisfies BindingConfig<Renderable, KeyEvent>;
-
-export function createTreeKeybinds(overrides: TreePluginKeybindOverrides) {
-  return createBindingLookup(createTreeBindingConfig(overrides));
+export function createTreeKeybinds(overrides: TreePluginKeybindOverrides): TreeKeybinds {
+  return Object.fromEntries(
+    Object.keys(treeKeybindDefaults).map((name) => {
+      const key = name as TreeKeybindName;
+      return [key, normalizeTreeKeybindValue(overrides[key] ?? treeKeybindDefaults[key])];
+    }),
+  ) as TreeKeybinds;
 }
 
-export function getTreeKeybindBindings(
-  keybinds: TreeKeybinds,
-  name: TreeKeybindName,
-  command: string = treeKeybindCommands[name],
-): Binding<Renderable, KeyEvent>[] {
-  return keybinds.get(treeKeybindCommands[name]).map((binding) => ({ ...binding, cmd: command }));
+export function getTreeKeybind(keybinds: TreeKeybinds, name: TreeKeybindName): string | false {
+  return keybinds[name];
 }
 
-export function formatTreeKeybindLabel(
-  keymap: TuiKeymap,
-  keybinds: TreeKeybinds,
-  name: TreeKeybindName,
-): string {
-  const key = keybinds.get(treeKeybindCommands[name])[0]?.key;
+export function formatTreeKeybindLabel(keybinds: TreeKeybinds, name: TreeKeybindName): string {
+  const key = keybinds[name];
   if (!key) return "";
 
-  const formatted = keymap.formatKey(key);
-  switch (formatted.toLowerCase()) {
+  const first = key.split(",")[0]?.trim() ?? "";
+  switch (first.toLowerCase()) {
     case "up":
       return "↑";
     case "down":
@@ -72,34 +59,12 @@ export function formatTreeKeybindLabel(
     case "escape":
       return "esc";
     default:
-      return formatted;
+      return first;
   }
 }
 
-function createTreeBindingConfig(
-  overrides: TreePluginKeybindOverrides,
-): BindingConfig<Renderable, KeyEvent> {
-  const config: Record<string, BindingValue<Renderable, KeyEvent>> = { ...treeKeybindDefaults };
-
-  for (const [name, value] of Object.entries(overrides) as [
-    TreeKeybindName,
-    TreePluginKeybindValue,
-  ][]) {
-    config[treeKeybindCommands[name]] = normalizeTreeKeybindValue(value);
-  }
-
-  return config;
-}
-
-function normalizeTreeKeybindValue(
-  value: TreePluginKeybindValue,
-): BindingValue<Renderable, KeyEvent> {
-  if (typeof value !== "string") return value;
-
-  const keys = value
-    .split(",")
-    .map((key) => key.trim())
-    .filter(Boolean);
-
-  return keys.length <= 1 ? (keys[0] ?? "none") : keys;
+function normalizeTreeKeybindValue(value: TreePluginKeybindValue): string | false {
+  if (value === false || value === "none") return false;
+  if (Array.isArray(value)) return value.join(",");
+  return value;
 }

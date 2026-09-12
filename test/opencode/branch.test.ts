@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { OpencodeClient } from "@opencode-ai/sdk/v2";
+import type { OpencodeClient } from "../../src/lib/opencode/messages";
 import { executeTreeBranchAction, executeTreeSummaryFork } from "../../src/lib/opencode/branch";
 import { buildTreeBranchSummaryMessage } from "../../src/lib/opencode/summary";
 import type { TreeRegistry, TreeSnapshot } from "../../src/lib/storage";
@@ -22,39 +22,37 @@ type BranchTestClient = {
   readonly client: OpencodeClient;
   readonly forkSession: ReturnType<typeof mock>;
   readonly promptSession: ReturnType<typeof mock>;
+  readonly syntheticSession: ReturnType<typeof mock>;
   readonly deleteSession: ReturnType<typeof mock>;
   readonly appendPrompt: ReturnType<typeof mock>;
   readonly showToast: ReturnType<typeof mock>;
+  readonly editPrompt: ReturnType<typeof mock>;
 };
 
 function createClient() {
-  const forkSession = mock(async () => ({
-    data: {
-      id: "sess_child",
-    },
-  }));
-  const promptSession = mock(async () => ({ data: { info: { id: "msg_summary" }, parts: [] } }));
-  const deleteSession = mock(async () => ({ data: true }));
-  const appendPrompt = mock(async () => ({ data: true }));
-  const showToast = mock(async () => ({ data: true }));
+  const forkSession = mock(async () => ({ id: "sess_child" }));
+  const promptSession = mock(async () => ({ id: "inbox_prompt" }));
+  const syntheticSession = mock(async () => ({ id: "inbox_summary" }));
+  const deleteSession = mock(async () => undefined);
+  const showToast = mock(() => {});
+  const editPrompt = mock(async (text: string) => text);
 
   return {
     client: {
       session: {
         fork: forkSession,
         prompt: promptSession,
-        delete: deleteSession,
-      },
-      tui: {
-        appendPrompt,
-        showToast,
+        synthetic: syntheticSession,
+        remove: deleteSession,
       },
     } as unknown as OpencodeClient,
     forkSession,
     promptSession,
+    syntheticSession,
     deleteSession,
-    appendPrompt,
+    appendPrompt: promptSession,
     showToast,
+    editPrompt,
   } satisfies BranchTestClient;
 }
 
@@ -88,6 +86,8 @@ describe("executeTreeBranchAction", () => {
       {
         client: client.client,
         navigateToSession,
+        showToast: client.showToast,
+        editPrompt: client.editPrompt,
         storage: {
           readRegistry: async () => ({
             version: 1,
@@ -103,8 +103,7 @@ describe("executeTreeBranchAction", () => {
 
     expect(client.forkSession).toHaveBeenCalledWith({
       sessionID: "sess_root",
-      messageID: "msg_user",
-      directory: "/repo",
+      boundary: { type: "before", messageID: "msg_user" },
     });
     expect(writeSnapshot).toHaveBeenCalledWith(storageRoot, {
       version: 1,
@@ -133,8 +132,9 @@ describe("executeTreeBranchAction", () => {
       },
     });
     expect(navigateToSession).toHaveBeenCalledWith("sess_child");
+    expect(client.editPrompt).toHaveBeenCalledWith("hello branch");
     expect(client.appendPrompt).toHaveBeenCalledWith({
-      directory: "/repo",
+      sessionID: "sess_child",
       text: "hello branch",
     });
   });
@@ -156,6 +156,8 @@ describe("executeTreeBranchAction", () => {
       {
         client: client.client,
         navigateToSession,
+        showToast: client.showToast,
+        editPrompt: client.editPrompt,
       },
     );
 
@@ -180,6 +182,8 @@ describe("executeTreeBranchAction", () => {
       {
         client: client.client,
         navigateToSession,
+        showToast: client.showToast,
+        editPrompt: client.editPrompt,
       },
     );
 
@@ -206,11 +210,12 @@ describe("executeTreeBranchAction", () => {
       {
         client: client.client,
         navigateToSession: () => {},
+        showToast: client.showToast,
+        editPrompt: client.editPrompt,
       },
     );
 
     expect(client.showToast).toHaveBeenCalledWith({
-      directory: "/repo",
       message: "Select a message row first.",
       variant: "info",
     });
@@ -246,6 +251,8 @@ describe("executeTreeBranchAction", () => {
         client: client.client,
         generateSummary,
         navigateToSession,
+        showToast: client.showToast,
+        editPrompt: client.editPrompt,
         storage: {
           readRegistry: async () => ({
             version: 1,
@@ -270,25 +277,17 @@ describe("executeTreeBranchAction", () => {
     );
     expect(client.forkSession).toHaveBeenCalledWith({
       sessionID: "sess_root",
-      messageID: "msg_user",
-      directory: "/repo",
+      boundary: { type: "before", messageID: "msg_user" },
     });
-    expect(client.promptSession).toHaveBeenCalledWith({
+    expect(client.syntheticSession).toHaveBeenCalledWith({
       sessionID: "sess_child",
-      directory: "/repo",
-      noReply: true,
-      parts: [
-        {
-          type: "text",
-          text: buildTreeBranchSummaryMessage("## Goal\nShip it"),
-        },
-      ],
+      text: buildTreeBranchSummaryMessage("## Goal\nShip it"),
     });
     expect(writeSnapshot).toHaveBeenCalled();
     expect(writeRegistry).toHaveBeenCalled();
     expect(navigateToSession).toHaveBeenCalledWith("sess_child");
     expect(client.appendPrompt).toHaveBeenCalledWith({
-      directory: "/repo",
+      sessionID: "sess_child",
       text: "hello branch",
     });
   });
@@ -315,19 +314,21 @@ describe("executeTreeBranchAction", () => {
             throw new Error("summary failed");
           },
           navigateToSession: () => {},
+          showToast: client.showToast,
+          editPrompt: client.editPrompt,
         },
       ),
     ).rejects.toThrow("summary failed");
 
     expect(client.forkSession).not.toHaveBeenCalled();
-    expect(client.promptSession).not.toHaveBeenCalled();
+    expect(client.syntheticSession).not.toHaveBeenCalled();
   });
 
   test("deletes the forked session if writing the summary into it fails", async () => {
     const client = createClient();
-    client.promptSession.mockImplementation(
-      async () => ({ error: new Error("inject failed") }) as any,
-    );
+    client.syntheticSession.mockImplementation(async () => {
+      throw new Error("inject failed");
+    });
 
     await expect(
       executeTreeSummaryFork(
@@ -346,13 +347,14 @@ describe("executeTreeBranchAction", () => {
           client: client.client,
           generateSummary: async () => "## Goal\nShip it",
           navigateToSession: () => {},
+          showToast: client.showToast,
+          editPrompt: client.editPrompt,
         },
       ),
-    ).rejects.toThrow("Failed to write summary into the new branch session");
+    ).rejects.toThrow("inject failed");
 
     expect(client.deleteSession).toHaveBeenCalledWith({
       sessionID: "sess_child",
-      directory: "/repo",
     });
   });
 });

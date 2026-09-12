@@ -1,20 +1,16 @@
-import type { TuiRouteCurrent } from "@opencode-ai/plugin/tui";
+import type { Route } from "@opencode/plugin/tui/context";
 
 export type TreeRouteParams = {
   readonly sessionID?: string;
 };
 
-export function isSessionRoute(
-  current: TuiRouteCurrent,
-): current is Extract<TuiRouteCurrent, { name: "session" }> {
-  return current.name === "session";
+export function isSessionRoute(current: Route): current is Extract<Route, { type: "session" }> {
+  return current.type === "session";
 }
 
-export function getTreeRouteParamsForNavigation(
-  current: TuiRouteCurrent,
-): TreeRouteParams | undefined {
+export function getTreeRouteParamsForNavigation(current: Route): TreeRouteParams | undefined {
   if (!isSessionRoute(current)) return undefined;
-  return { sessionID: current.params.sessionID };
+  return { sessionID: current.sessionID };
 }
 
 export function parseTreeRouteParams(params: Record<string, unknown> | undefined): TreeRouteParams {

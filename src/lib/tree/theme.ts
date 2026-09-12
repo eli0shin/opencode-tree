@@ -1,20 +1,53 @@
-import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui";
+import type { ResolvedTheme } from "@opencode/theme/tui";
+import type { RGBA } from "@opentui/core";
 import type { TreeFlatRow } from "./flatten";
 
+export type TreeTheme = {
+  readonly text: RGBA;
+  readonly textMuted: RGBA;
+  readonly background: RGBA;
+  readonly backgroundElement: RGBA;
+  readonly borderSubtle: RGBA;
+  readonly borderActive: RGBA;
+  readonly primary: RGBA;
+  readonly secondary: RGBA;
+  readonly accent: RGBA;
+  readonly info: RGBA;
+  readonly warning: RGBA;
+  readonly error: RGBA;
+};
+
+export function createTreeTheme(theme: ResolvedTheme): TreeTheme {
+  return {
+    text: theme.text.default,
+    textMuted: theme.text.subdued,
+    background: theme.background.default,
+    backgroundElement: theme.background.action.primary.default,
+    borderSubtle: theme.border.default,
+    borderActive: theme.text.action.primary.default,
+    primary: theme.text.action.primary.default,
+    secondary: theme.text.action.secondary.default,
+    accent: theme.text.action.primary.default,
+    info: theme.text.feedback.info.default,
+    warning: theme.text.feedback.warning.default,
+    error: theme.text.feedback.error.default,
+  };
+}
+
 export type TreeThemePalette = {
-  readonly screenBackground: TuiThemeCurrent["background"];
-  readonly panelBackground: TuiThemeCurrent["backgroundPanel"];
-  readonly panelBorder: TuiThemeCurrent["borderSubtle"];
-  readonly selectedRowBackground: TuiThemeCurrent["backgroundElement"];
-  readonly selectedRowBorder: TuiThemeCurrent["borderActive"];
-  readonly guideText: TuiThemeCurrent["primary"];
-  readonly helpText: TuiThemeCurrent["textMuted"];
-  readonly helpKey: TuiThemeCurrent["accent"];
-  readonly loadingText: TuiThemeCurrent["info"];
-  readonly emptyText: TuiThemeCurrent["textMuted"];
-  readonly errorText: TuiThemeCurrent["error"];
-  readonly noticeText: TuiThemeCurrent["warning"];
-  readonly branchingText: TuiThemeCurrent["accent"];
+  readonly screenBackground: RGBA;
+  readonly panelBackground: RGBA;
+  readonly panelBorder: RGBA;
+  readonly selectedRowBackground: RGBA;
+  readonly selectedRowBorder: RGBA;
+  readonly guideText: RGBA;
+  readonly helpText: RGBA;
+  readonly helpKey: RGBA;
+  readonly loadingText: RGBA;
+  readonly emptyText: RGBA;
+  readonly errorText: RGBA;
+  readonly noticeText: RGBA;
+  readonly branchingText: RGBA;
 };
 
 export type TreeRowStyleState = {
@@ -22,7 +55,7 @@ export type TreeRowStyleState = {
   readonly current: boolean;
 };
 
-export function mapTreeTheme(theme: TuiThemeCurrent): TreeThemePalette {
+export function mapTreeTheme(theme: TreeTheme): TreeThemePalette {
   return {
     screenBackground: theme.background,
     panelBackground: theme.background,
@@ -41,10 +74,10 @@ export function mapTreeTheme(theme: TuiThemeCurrent): TreeThemePalette {
 }
 
 export function getTreeRowForeground(
-  theme: TuiThemeCurrent,
+  theme: TreeTheme,
   row: TreeFlatRow,
   _state: TreeRowStyleState,
-): TuiThemeCurrent["text"] {
+): RGBA {
   if (row.kind === "session") {
     if (row.isDeleted) return theme.error;
     return theme.secondary;
@@ -61,18 +94,12 @@ export function getTreeRowForeground(
   return theme.text;
 }
 
-export function getTreeRowBackground(
-  theme: TuiThemeCurrent,
-  state: TreeRowStyleState,
-): TuiThemeCurrent["backgroundElement"] | undefined {
+export function getTreeRowBackground(theme: TreeTheme, state: TreeRowStyleState): RGBA | undefined {
   if (!state.selected) return undefined;
   return theme.backgroundElement;
 }
 
-export function getTreeRowBorder(
-  theme: TuiThemeCurrent,
-  state: TreeRowStyleState,
-): TuiThemeCurrent["borderActive"] | undefined {
+export function getTreeRowBorder(theme: TreeTheme, state: TreeRowStyleState): RGBA | undefined {
   if (!state.selected) return undefined;
   return theme.borderActive;
 }

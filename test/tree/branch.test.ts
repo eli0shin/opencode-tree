@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { AssistantMessage, TextPart, UserMessage } from "@opencode-ai/sdk/v2";
+import type { AssistantMessage, TextPart, UserMessage } from "../../src/lib/opencode/messages";
 import {
   createSessionTranscript,
   type SessionTranscriptMap,

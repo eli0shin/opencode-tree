@@ -7,7 +7,7 @@ import type {
   TextPart,
   ToolPart,
   UserMessage,
-} from "@opencode-ai/sdk/v2";
+} from "../../src/lib/opencode/messages";
 import {
   createSessionTranscript,
   type SessionTranscript,

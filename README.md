@@ -6,23 +6,36 @@
 
 ![opencode-tree demo](./demo.gif)
 
+## Requirements
+
+- OpenCode V2
+- OpenTUI 0.5.10 or newer
+
 ## Installation
 
-Install globally:
+Clone this repository and build the plugin:
 
 ```bash
-opencode plugin @ishaksebsib/opencode-tree --global
+git clone https://github.com/eli0shin/opencode-tree.git
+cd opencode-tree
+bun install
+bun run build
 ```
 
-Install in the current project:
+Add the checkout path to `~/.config/opencode/cli.json`:
 
-```bash
-opencode plugin @ishaksebsib/opencode-tree
+```json
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": ["/absolute/path/to/opencode-tree"]
+}
 ```
+
+This is a CLI plugin. Do not add it to `opencode.json`; that file configures server plugins.
 
 ## Configuration
 
-`~/.config/opencode/tui.json`
+`~/.config/opencode/cli.json`
 
 By default, tree state is saved [globally](#global-storage).
 
@@ -30,7 +43,12 @@ To save it in the current project’s `.opencode` folder instead, set `storageSc
 
 ```json
 {
-  "plugin": [["@ishaksebsib/opencode-tree", { "storageScope": "local" }]]
+  "plugins": [
+    {
+      "package": "/absolute/path/to/opencode-tree",
+      "options": { "storageScope": "local" }
+    }
+  ]
 }
 ```
 
@@ -40,10 +58,10 @@ All options are optional. This example shows the default values:
 
 ```json
 {
-  "plugin": [
-    [
-      "@ishaksebsib/opencode-tree",
-      {
+  "plugins": [
+    {
+      "package": "/absolute/path/to/opencode-tree",
+      "options": {
         "storageScope": "global",
         "lines_per_jump": 20,
         "keybinds": {
@@ -57,7 +75,7 @@ All options are optional. This example shows the default values:
           "back": "escape,ctrl+c"
         }
       }
-    ]
+    }
   ]
 }
 ```
@@ -67,6 +85,4 @@ All options are optional. This example shows the default values:
 - if `local`: `<projectRoot>/.opencode/opencode-tree/`
 - <a id="global-storage"></a>if `global`: `<opencode-state>/plugins/opencode-tree/`
   - Where `<opencode-state>` is:
-    - Linux: `~/.local/state/opencode`
-    - macOS: `~/Library/Application Support/opencode`
-    - Windows: `%LOCALAPPDATA%\\opencode`
+    - All platforms: `${XDG_STATE_HOME:-~/.local/state}/opencode`

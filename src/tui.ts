@@ -1,85 +1,95 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { Plugin } from "@opencode/plugin/tui";
 import { createComponent } from "solid-js";
-import type { TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui";
 import { parseTreePluginOptions } from "./lib/config/plugin";
 import { createSnapshotSessionTranscriptsLoader } from "./lib/opencode/messages";
 import { resolveStorageRoot } from "./lib/storage";
 import { createTreeKeybinds, formatTreeKeybindLabel } from "./lib/tree/keybinds";
 import { TreeRoute } from "./lib/tree/route";
-import { resolveProjectRoot } from "./lib/tree/project";
 import {
   getTreeRouteParamsForNavigation,
   isSessionRoute,
   parseTreeRouteParams,
 } from "./lib/tree/route-params";
+import { createTreeTheme } from "./lib/tree/theme";
 
-const id = "opencode.tree";
 const routeName = "tree";
 
-const tui: TuiPlugin = async (api, options) => {
-  const pluginOptions = parseTreePluginOptions(options);
-  const treeKeybinds = createTreeKeybinds(pluginOptions.keybinds);
+export default Plugin.define({
+  id: "opencode.tree",
+  setup(context) {
+    const pluginOptions = parseTreePluginOptions(context.options);
+    const treeKeybinds = createTreeKeybinds(pluginOptions.keybinds);
 
-  api.keymap.registerLayer({
-    commands: [
-      {
-        namespace: "palette",
-        name: "tree.open",
-        title: "Tree",
-        category: "Plugin",
-        slashName: "tree",
-        suggested: () => isSessionRoute(api.route.current),
-        enabled: () => isSessionRoute(api.route.current),
-        run: () => {
-          api.route.navigate(routeName, getTreeRouteParamsForNavigation(api.route.current));
-          api.ui.dialog.clear();
+    context.keymap.layer(() => ({
+      mode: "global",
+      commands: [
+        {
+          id: "tree.open",
+          title: "Tree",
+          group: "Plugin",
+          palette: true,
+          slash: { name: "tree" },
+          suggested: () => isSessionRoute(context.ui.router.current()),
+          enabled: () => isSessionRoute(context.ui.router.current()),
+          run: () => {
+            context.ui.router.navigate({
+              type: "plugin",
+              name: routeName,
+              data: getTreeRouteParamsForNavigation(context.ui.router.current()),
+            });
+            context.ui.dialog.clear();
+          },
         },
-      },
-    ],
-  });
+      ],
+    }));
 
-  api.route.register([
-    {
+    return context.ui.router.register({
       name: routeName,
-      render: ({ params }) => {
-        const projectRoot = resolveProjectRoot(api.state.path);
-        const storageRoot = projectRoot
-          ? resolveStorageRoot({
-              projectRoot,
-              stateRoot: api.state.path.state,
-              storageScope: pluginOptions.storageScope,
-            })
-          : undefined;
+      render: ({ data }) => {
+        const routeParams = parseTreeRouteParams(data);
+        const projectRoot = resolveTreeProjectRoot(context, routeParams.sessionID);
+        const storageRoot = resolveStorageRoot({
+          projectRoot,
+          stateRoot: resolveOpenCodeStateRoot(),
+          storageScope: pluginOptions.storageScope,
+        });
 
         return createComponent(TreeRoute, {
-          client: api.client,
+          client: context.client,
           config: {
             storageRoot,
             keybinds: treeKeybinds,
-            keybindLabel: (name) => formatTreeKeybindLabel(api.keymap, treeKeybinds, name),
+            keybindLabel: (name) => formatTreeKeybindLabel(treeKeybinds, name),
             linesPerJump: pluginOptions.lines_per_jump,
           },
-          keymap: api.keymap,
-          ui: {
-            dialog: api.ui.dialog,
-            DialogPrompt: api.ui.DialogPrompt,
-            DialogSelect: api.ui.DialogSelect,
-          },
+          keymap: context.keymap,
+          ui: context.ui,
           projectRoot,
-          theme: () => api.theme.current,
-          loadSessionTranscripts: createSnapshotSessionTranscriptsLoader(api.client, {
-            directory: projectRoot,
-          }),
-          navigateToSession: (sessionId: string) => {
-            api.route.navigate("session", { sessionID: sessionId });
+          theme: () => createTreeTheme(context.theme),
+          loadSessionTranscripts: createSnapshotSessionTranscriptsLoader(context.client),
+          navigateToSession: (sessionID: string) => {
+            context.ui.router.navigate({ type: "session", sessionID });
           },
-          ...parseTreeRouteParams(params),
+          ...routeParams,
         });
       },
-    },
-  ]);
-};
+    });
+  },
+});
 
-export default {
-  id,
-  tui,
-} satisfies TuiPluginModule & { id: string };
+export function resolveTreeProjectRoot(
+  context: Pick<Plugin.Context, "data" | "location">,
+  sessionID?: string,
+): string {
+  return (
+    (sessionID ? context.data.session.get(sessionID)?.location.directory : undefined) ??
+    context.location?.directory ??
+    context.data.location.default().directory
+  );
+}
+
+function resolveOpenCodeStateRoot(): string {
+  return join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local", "state"), "opencode");
+}

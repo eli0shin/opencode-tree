@@ -1,4 +1,4 @@
-import type { OpencodeClient } from "@opencode-ai/sdk/v2";
+import type { OpenCodeClient } from "@opencode/client";
 import {
   buildTreeBranchSummaryMessage,
   generateTreeBranchSummary,
@@ -29,7 +29,12 @@ export type ExecuteTreeBranchActionInput = {
 };
 
 export type ExecuteTreeBranchActionDependencies = {
-  readonly client: OpencodeClient;
+  readonly client: OpenCodeClient;
+  readonly showToast: (input: {
+    message: string;
+    variant: "info" | "success" | "warning" | "error";
+  }) => void;
+  readonly editPrompt: (text: string) => Promise<string | undefined>;
   readonly navigateToSession: (sessionId: string) => void | Promise<void>;
   readonly generateSummary?: typeof generateTreeBranchSummary;
   readonly storage?: TreeBranchStorage;
@@ -78,8 +83,7 @@ export async function executeTreeBranchAction(
   }
 
   if (input.action.kind === "show-notice") {
-    await dependencies.client.tui.showToast({
-      directory: input.projectRoot,
+    dependencies.showToast({
       message: input.action.message,
       variant: input.action.variant,
     });
@@ -172,16 +176,21 @@ export async function executeTreeSummaryFork(
 
 export async function completeTreeForkTransition(
   input: CompleteTreeForkTransitionInput,
-  dependencies: Pick<ExecuteTreeBranchActionDependencies, "client" | "navigateToSession">,
+  dependencies: Pick<
+    ExecuteTreeBranchActionDependencies,
+    "client" | "navigateToSession" | "editPrompt"
+  >,
 ): Promise<void> {
   await dependencies.navigateToSession(input.forkedSessionId);
 
   if (!input.appendPromptText) return;
 
   await waitForRouteTransition();
-  await dependencies.client.tui.appendPrompt({
-    directory: input.projectRoot,
-    text: input.appendPromptText,
+  const promptText = await dependencies.editPrompt(input.appendPromptText);
+  if (!promptText) return;
+  await dependencies.client.session.prompt({
+    sessionID: input.forkedSessionId,
+    text: promptText,
   });
 }
 
@@ -194,15 +203,14 @@ function waitForRouteTransition(): Promise<void> {
 async function forkTreeSession(
   plan: TreeBranchForkPlan,
   projectRoot: string,
-  client: OpencodeClient,
+  client: OpenCodeClient,
 ): Promise<string> {
   const forked = await client.session.fork({
     sessionID: plan.sessionId,
-    messageID: plan.forkMessageId,
-    directory: projectRoot,
+    boundary: { type: "before", messageID: plan.forkMessageId },
   });
 
-  const forkedSessionId = forked.data?.id;
+  const forkedSessionId = forked.id;
   if (!forkedSessionId) {
     throw new Error("Fork request did not return a session ID");
   }
@@ -233,40 +241,24 @@ async function injectTreeBranchSummary(
   sessionId: string,
   summary: string,
   projectRoot: string,
-  client: OpencodeClient,
+  client: OpenCodeClient,
 ): Promise<void> {
-  const result = await client.session.prompt({
+  await client.session.synthetic({
     sessionID: sessionId,
-    directory: projectRoot,
-    noReply: true,
-    parts: [
-      {
-        type: "text",
-        text: buildTreeBranchSummaryMessage(summary),
-      },
-    ],
+    text: buildTreeBranchSummaryMessage(summary),
   });
-
-  if (result.error) {
-    throw new Error("Failed to write summary into the new branch session");
-  }
 }
 
 async function cleanupFailedTreeFork(
   forkedSessionId: string,
   projectRoot: string,
-  client: OpencodeClient,
+  client: OpenCodeClient,
   error: unknown,
 ): Promise<never> {
   try {
-    const result = await client.session.delete({
+    await client.session.remove({
       sessionID: forkedSessionId,
-      directory: projectRoot,
     });
-
-    if (result.error || result.data !== true) {
-      throw new Error("Failed to clean up the new branch session");
-    }
   } catch (cleanupError) {
     throw new Error(`${getErrorMessage(error)}; cleanup failed: ${getErrorMessage(cleanupError)}`);
   }

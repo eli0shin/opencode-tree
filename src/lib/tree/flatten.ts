@@ -1,4 +1,4 @@
-import type { Part, ReasoningPart, TextPart, ToolPart } from "@opencode-ai/sdk/v2";
+import type { Part, ReasoningPart, TextPart, ToolPart } from "../opencode/types";
 import {
   getMessageRowId,
   getSessionRowId,

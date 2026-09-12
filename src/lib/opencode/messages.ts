@@ -1,11 +1,24 @@
 import type {
+  OpenCodeClient,
+  SessionMessageAssistant,
+  SessionMessageInfo,
+  SessionMessageSynthetic,
+  SessionMessageUser,
+} from "@opencode/client";
+import type { FilePart, Message, Part, ReasoningPart, ToolPart } from "./types";
+export type {
+  AssistantMessage,
   FilePart,
   Message,
-  OpencodeClient,
   Part,
   ReasoningPart,
+  StepFinishPart,
+  StepStartPart,
+  TextPart,
   ToolPart,
-} from "@opencode-ai/sdk/v2";
+  UserMessage,
+} from "./types";
+export type { OpenCodeClient, OpenCodeClient as OpencodeClient } from "@opencode/client";
 import type { TreeSnapshot } from "../storage";
 
 export type SessionMessageRecord = {
@@ -91,36 +104,30 @@ export function createSessionTranscript(input: {
 }
 
 export function createSessionMessagesPageLoader(
-  client: OpencodeClient,
+  client: OpenCodeClient,
   options: OpenCodeMessagesLoaderOptions = {},
 ): LoadSessionMessagesPage {
   return async (input) => {
-    const result = await client.session.messages({
-      sessionID: input.sessionId,
-      directory: options.directory,
-      workspace: options.workspace,
-      limit: input.limit,
-      before: input.before,
-    });
+    try {
+      const result = await client.message.list({
+        sessionID: input.sessionId,
+        limit: input.limit,
+        order: "desc",
+        cursor: input.before,
+      });
 
-    const statusCode = result.response?.status;
-
-    if (statusCode === 404 || isNotFoundError(result.error)) {
+      return {
+        status: "available",
+        items: result.data.flatMap(toSessionMessageRecord),
+        nextCursor: result.cursor.next ?? undefined,
+      };
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
       return {
         status: "deleted",
         items: [],
       };
     }
-
-    if (result.error) {
-      throw createSessionMessagesLoadError(input.sessionId, result.error, statusCode);
-    }
-
-    return {
-      status: "available",
-      items: (result.data ?? []).map((item) => ({ info: item.info, parts: item.parts })),
-      nextCursor: result.response?.headers.get("x-next-cursor") ?? undefined,
-    };
   };
 }
 
@@ -185,7 +192,7 @@ export async function loadSnapshotSessionTranscripts(
 }
 
 export function createSnapshotSessionTranscriptsLoader(
-  client: OpencodeClient,
+  client: OpenCodeClient,
   options: OpenCodeMessagesLoaderOptions = {},
 ): LoadSnapshotSessionTranscripts {
   const loadPage = createSessionMessagesPageLoader(client, options);
@@ -193,6 +200,50 @@ export function createSnapshotSessionTranscriptsLoader(
     loadSnapshotSessionTranscripts(snapshot, (sessionId) =>
       loadSessionTranscript(sessionId, loadPage, options.pageSize),
     );
+}
+
+function toSessionMessageRecord(message: SessionMessageInfo): SessionMessageRecord[] {
+  if (message.type === "user") return [toUserMessageRecord(message)];
+  if (message.type === "assistant") return [toAssistantMessageRecord(message)];
+  if (message.type === "synthetic") return [toSyntheticMessageRecord(message)];
+  return [];
+}
+
+function toSyntheticMessageRecord(message: SessionMessageSynthetic): SessionMessageRecord {
+  return {
+    info: { ...message, role: "user" },
+    parts: [{ type: "text", text: message.text }],
+  };
+}
+
+function toUserMessageRecord(message: SessionMessageUser): SessionMessageRecord {
+  const parts: Part[] = [{ type: "text", text: message.text }];
+  for (const file of message.files ?? []) {
+    parts.push({
+      type: "file",
+      filename: file.name,
+      url: file.source.type === "uri" ? file.source.uri : `data:${file.mime};base64,${file.data}`,
+    });
+  }
+  return { info: { ...message, role: "user" }, parts };
+}
+
+function toAssistantMessageRecord(message: SessionMessageAssistant): SessionMessageRecord {
+  const parts: Part[] = message.content.map((part) => {
+    if (part.type === "tool") {
+      return {
+        ...part,
+        tool: part.name,
+        state: {
+          ...part.state,
+          input:
+            typeof part.state.input === "string" ? { input: part.state.input } : part.state.input,
+        },
+      };
+    }
+    return part;
+  });
+  return { info: { ...message, role: "assistant" }, parts };
 }
 
 export function getMessageTextReplay(parts: readonly Part[]): string | undefined {
@@ -322,32 +373,12 @@ function collectMessageFiles(parts: readonly Part[]): readonly string[] {
 }
 
 function collectFallbackPartTypes(parts: readonly Part[]): readonly string[] {
-  const types: string[] = [];
-  const seen = new Set<string>();
-
-  for (const part of parts) {
-    if (
-      part.type === "text" ||
-      part.type === "reasoning" ||
-      part.type === "tool" ||
-      part.type === "file"
-    ) {
-      continue;
-    }
-
-    if (part.type === "step-start" || part.type === "step-finish") {
-      continue;
-    }
-
-    if (seen.has(part.type)) {
-      continue;
-    }
-
-    seen.add(part.type);
-    types.push(part.type);
-  }
-
-  return types;
+  return parts
+    .filter(
+      (part) =>
+        !["text", "reasoning", "tool", "file", "step-start", "step-finish"].includes(part.type),
+    )
+    .map((part) => part.type);
 }
 
 function formatToolCall(part: ToolPart): string {
@@ -390,11 +421,16 @@ function getFilePartLabel(part: FilePart): string {
   return part.url;
 }
 
-function isNotFoundError(
-  error: unknown,
-): error is { readonly name: "NotFoundError"; readonly data?: { readonly message?: string } } {
+function isNotFoundError(error: unknown): error is {
+  readonly name?: "NotFoundError";
+  readonly _tag?: "SessionNotFoundError";
+  readonly data?: { readonly message?: string };
+} {
   return (
-    typeof error === "object" && error !== null && "name" in error && error.name === "NotFoundError"
+    typeof error === "object" &&
+    error !== null &&
+    (("name" in error && error.name === "NotFoundError") ||
+      ("_tag" in error && error._tag === "SessionNotFoundError"))
   );
 }
 

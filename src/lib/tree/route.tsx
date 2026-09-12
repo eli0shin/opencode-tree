@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
-import type { TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui";
-import type { OpencodeClient } from "@opencode-ai/sdk/v2";
+import type { Plugin } from "@opencode/plugin/tui";
+import type { OpenCodeClient } from "@opencode/client";
 import { useTerminalDimensions } from "@opentui/solid";
 import {
   createEffect,
@@ -39,7 +39,7 @@ import {
 } from "./navigation";
 import { projectSessionTree, type ProjectedSessionNode } from "./project";
 import { createTreeRouteBranchController } from "./route-branching";
-import { mapTreeTheme } from "./theme";
+import { mapTreeTheme, type TreeTheme } from "./theme";
 import {
   buildVisibleTree,
   getMessageRowId,
@@ -49,18 +49,18 @@ import {
 } from "./visible";
 
 export type TreeRouteProps = {
-  readonly client: OpencodeClient;
+  readonly client: OpenCodeClient;
   readonly config: {
     readonly storageRoot?: string;
     readonly keybinds: TreeKeybinds;
     readonly keybindLabel: (name: TreeKeybindName) => string;
     readonly linesPerJump: number;
   };
-  readonly keymap: TuiPluginApi["keymap"];
-  readonly ui: Pick<TuiPluginApi["ui"], "dialog"> & TreeBranchSummaryDialogUI;
+  readonly keymap: Plugin.Context["keymap"];
+  readonly ui: Pick<Plugin.Context["ui"], "dialog" | "toast"> & TreeBranchSummaryDialogUI;
   readonly projectRoot?: string;
   readonly sessionID?: string;
-  readonly theme: () => TuiThemeCurrent;
+  readonly theme: () => TreeTheme;
   readonly loadSessionTranscripts: LoadSnapshotSessionTranscripts;
   readonly navigateToSession: (sessionId: string) => void | Promise<void>;
 };
@@ -206,71 +206,68 @@ export function TreeRoute(props: TreeRouteProps) {
     }),
   );
 
-  createEffect(() => {
-    const off = props.keymap.registerLayer({
-      commands: [
-        {
-          name: treeKeybindCommands.back,
-          hidden: true,
-          enabled: () =>
-            branchController.busyState()?.kind === "summarizing" ||
-            (canUseTreeRoute() && Boolean(props.sessionID)),
-          run: runBackCommand,
-        },
-        {
-          name: treeKeybindCommands.jump_up,
-          hidden: true,
-          enabled: canUseTreeRows,
-          run: () =>
-            updateSelectedRowId((currentIndex) =>
-              moveSelectionBy(rows(), currentIndex, -props.config.linesPerJump),
-            ),
-        },
-        {
-          name: treeKeybindCommands.jump_down,
-          hidden: true,
-          enabled: canUseTreeRows,
-          run: () =>
-            updateSelectedRowId((currentIndex) =>
-              moveSelectionBy(rows(), currentIndex, props.config.linesPerJump),
-            ),
-        },
-        {
-          name: treeKeybindCommands.move_up,
-          hidden: true,
-          enabled: canUseTreeRows,
-          run: () => updateSelectedRowId((currentIndex) => moveSelectionUp(rows(), currentIndex)),
-        },
-        {
-          name: treeKeybindCommands.move_down,
-          hidden: true,
-          enabled: canUseTreeRows,
-          run: () => updateSelectedRowId((currentIndex) => moveSelectionDown(rows(), currentIndex)),
-        },
-        {
-          name: treeKeybindCommands.collapse,
-          hidden: true,
-          enabled: canUseTreeRows,
-          run: collapseSelectedSession,
-        },
-        {
-          name: treeKeybindCommands.expand,
-          hidden: true,
-          enabled: canUseTreeRows,
-          run: expandSelectedSession,
-        },
-        {
-          name: treeKeybindCommands.select,
-          hidden: true,
-          enabled: canUseTreeRows,
-          run: runSelectCommand,
-        },
-      ],
-      bindings: props.config.keybinds.gather("tree", treeRouteCommands),
-    });
-
-    onCleanup(off);
-  });
+  props.keymap.layer(() => ({
+    mode: "global",
+    commands: [
+      {
+        id: treeKeybindCommands.back,
+        bind: props.config.keybinds.back,
+        enabled: () =>
+          branchController.busyState()?.kind === "summarizing" ||
+          (canUseTreeRoute() && Boolean(props.sessionID)),
+        run: runBackCommand,
+      },
+      {
+        id: treeKeybindCommands.jump_up,
+        bind: props.config.keybinds.jump_up,
+        enabled: canUseTreeRows,
+        run: () =>
+          updateSelectedRowId((currentIndex) =>
+            moveSelectionBy(rows(), currentIndex, -props.config.linesPerJump),
+          ),
+      },
+      {
+        id: treeKeybindCommands.jump_down,
+        bind: props.config.keybinds.jump_down,
+        enabled: canUseTreeRows,
+        run: () =>
+          updateSelectedRowId((currentIndex) =>
+            moveSelectionBy(rows(), currentIndex, props.config.linesPerJump),
+          ),
+      },
+      {
+        id: treeKeybindCommands.move_up,
+        bind: props.config.keybinds.move_up,
+        enabled: canUseTreeRows,
+        run: () => updateSelectedRowId((currentIndex) => moveSelectionUp(rows(), currentIndex)),
+      },
+      {
+        id: treeKeybindCommands.move_down,
+        bind: props.config.keybinds.move_down,
+        enabled: canUseTreeRows,
+        run: () => updateSelectedRowId((currentIndex) => moveSelectionDown(rows(), currentIndex)),
+      },
+      {
+        id: treeKeybindCommands.collapse,
+        bind: props.config.keybinds.collapse,
+        enabled: canUseTreeRows,
+        run: collapseSelectedSession,
+      },
+      {
+        id: treeKeybindCommands.expand,
+        bind: props.config.keybinds.expand,
+        enabled: canUseTreeRows,
+        run: expandSelectedSession,
+      },
+      {
+        id: treeKeybindCommands.select,
+        bind: props.config.keybinds.select,
+        enabled: canUseTreeRows,
+        run: runSelectCommand,
+      },
+    ],
+    bindings: treeRouteCommands,
+  }));
 
   return (
     <box
@@ -327,7 +324,7 @@ export function TreeRoute(props: TreeRouteProps) {
   }
 
   function canUseTreeRoute(): boolean {
-    return treeFocused() && !props.ui.dialog.open && !branchController.busy();
+    return treeFocused() && !branchController.busy();
   }
 
   function canUseTreeRows(): boolean {

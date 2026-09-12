@@ -1,4 +1,4 @@
-import type { OpencodeClient, Part } from "@opencode-ai/sdk/v2";
+import type { OpenCodeClient } from "@opencode/client";
 
 // NOTE: The prompt definitions below are adapted from a PI coding agent codebase.
 // Original reference:
@@ -63,7 +63,7 @@ export type GenerateTreeBranchSummaryInput = {
 };
 
 export type GenerateTreeBranchSummaryDependencies = {
-  readonly client: OpencodeClient;
+  readonly client: OpenCodeClient;
 };
 
 export function buildTreeBranchSummaryInstructions(customInstructions?: string): string {
@@ -98,25 +98,25 @@ export async function generateTreeBranchSummary(
     const helperSession = input.signal
       ? await dependencies.client.session.create(
           {
-            directory: input.projectRoot,
             title: "Tree branch summary",
+            location: { directory: input.projectRoot },
+            agent: input.agent,
+            model: input.model
+              ? { providerID: input.model.providerID, id: input.model.modelID }
+              : undefined,
           },
           { signal: input.signal },
         )
       : await dependencies.client.session.create({
-          directory: input.projectRoot,
           title: "Tree branch summary",
+          location: { directory: input.projectRoot },
+          agent: input.agent,
+          model: input.model
+            ? { providerID: input.model.providerID, id: input.model.modelID }
+            : undefined,
         });
 
-    if (helperSession.error) {
-      throw createSessionSummaryError(
-        "create summary helper session",
-        helperSession.error,
-        helperSession.response?.status,
-      );
-    }
-
-    helperSessionId = helperSession.data?.id;
+    helperSessionId = helperSession.id;
     if (!helperSessionId) {
       throw new Error("Summary helper session creation did not return a session ID");
     }
@@ -130,19 +130,10 @@ export async function generateTreeBranchSummary(
 
     const promptParameters = {
       sessionID: helperSessionId,
-      directory: input.projectRoot,
-      system: TREE_BRANCH_SUMMARIZATION_SYSTEM_PROMPT,
-      agent: input.agent,
-      model: input.model,
-      parts: [
-        {
-          type: "text" as const,
-          text: buildTreeBranchSummaryPrompt({
-            conversation: input.conversation,
-            customInstructions: input.customInstructions,
-          }),
-        },
-      ],
+      prompt: `${TREE_BRANCH_SUMMARIZATION_SYSTEM_PROMPT}\n\n${buildTreeBranchSummaryPrompt({
+        conversation: input.conversation,
+        customInstructions: input.customInstructions,
+      })}`,
     };
 
     const promptResult = await promptSummaryWithCancellation({
@@ -150,19 +141,11 @@ export async function generateTreeBranchSummary(
       getAbortPromise,
       prompt: () =>
         input.signal
-          ? dependencies.client.session.prompt(promptParameters, { signal: input.signal })
-          : dependencies.client.session.prompt(promptParameters),
+          ? dependencies.client.session.generate(promptParameters, { signal: input.signal })
+          : dependencies.client.session.generate(promptParameters),
     });
 
-    if (promptResult.error) {
-      throw createSessionSummaryError(
-        "generate branch summary",
-        promptResult.error,
-        promptResult.response?.status,
-      );
-    }
-
-    summary = extractSummaryText(promptResult.data?.parts ?? []);
+    summary = promptResult.text.trim() || undefined;
     if (!summary) {
       throw new Error("Summary helper session returned no text");
     }
@@ -206,16 +189,6 @@ export async function generateTreeBranchSummary(
   return summary;
 }
 
-function extractSummaryText(parts: readonly Part[]): string | undefined {
-  const text = parts.reduce((result, part) => {
-    if (part.type !== "text" || part.synthetic || part.ignored) return result;
-    return result + part.text;
-  }, "");
-
-  const normalized = text.trim();
-  return normalized.length > 0 ? normalized : undefined;
-}
-
 function createSessionSummaryError(action: string, error: unknown, statusCode?: number): Error {
   const prefix = `Failed to ${action}`;
   const message = getApiErrorMessage(error);
@@ -238,31 +211,18 @@ function createSessionSummaryError(action: string, error: unknown, statusCode?: 
 async function deleteSummaryHelperSession(
   sessionId: string,
   projectRoot: string,
-  client: OpencodeClient,
+  client: OpenCodeClient,
 ): Promise<void> {
-  const deleteResult = await client.session.delete({
+  await client.session.remove({
     sessionID: sessionId,
-    directory: projectRoot,
   });
-
-  if (deleteResult.error) {
-    throw createSessionSummaryError(
-      "delete summary helper session",
-      deleteResult.error,
-      deleteResult.response?.status,
-    );
-  }
-
-  if (deleteResult.data !== true) {
-    throw new Error("Summary helper session deletion did not succeed");
-  }
 }
 
 function trackSummaryAbort(input: {
   readonly signal?: AbortSignal;
   readonly sessionId: string;
   readonly projectRoot: string;
-  readonly client: OpencodeClient;
+  readonly client: OpenCodeClient;
 }): {
   readonly getAbortPromise: () => Promise<void> | undefined;
   readonly detachAbortListener: () => void;
@@ -362,22 +322,12 @@ async function waitForSummaryAbort(
 async function abortSummaryHelperSession(
   sessionId: string,
   projectRoot: string,
-  client: OpencodeClient,
+  client: OpenCodeClient,
 ): Promise<void> {
-  const abortResult = await client.session.abort({
+  const abortResult = await client.session.interrupt({
     sessionID: sessionId,
-    directory: projectRoot,
   });
-
-  if (abortResult.error) {
-    throw createSessionSummaryError(
-      "abort summary helper session",
-      abortResult.error,
-      abortResult.response?.status,
-    );
-  }
-
-  if (abortResult.data !== true) {
+  if (!abortResult.interrupted) {
     throw new Error("Summary helper session abort did not succeed");
   }
 }

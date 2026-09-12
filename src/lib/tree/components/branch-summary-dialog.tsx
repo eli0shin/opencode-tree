@@ -2,11 +2,12 @@
 
 import type { TextareaRenderable } from "@opentui/core";
 import { TextAttributes } from "@opentui/core";
-import type { TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui";
+import type { Plugin } from "@opencode/plugin/tui";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Spinner } from "../../components/spinner";
-import { getTreeKeybindBindings, type TreeKeybindName, type TreeKeybinds } from "../keybinds";
+import { type TreeKeybindName, type TreeKeybinds } from "../keybinds";
 import type { TreeBranchSummaryRequest } from "../route-branching";
+import type { TreeTheme } from "../theme";
 
 type TreeBranchSummaryDialogOption = "no-summary" | "summarize" | "summarize-with-custom-prompt";
 
@@ -39,14 +40,14 @@ const branchSummaryDialogCommands = {
   back: "tree.summary.back",
 } as const;
 
-export type TreeBranchSummaryDialogUI = Pick<TuiPluginApi["ui"], "dialog">;
+export type TreeBranchSummaryDialogUI = Pick<Plugin.Context["ui"], "dialog">;
 
 export type TreeBranchSummaryDialogProps = {
   readonly keybinds: TreeKeybinds;
   readonly keybindLabel: (name: TreeKeybindName) => string;
-  readonly keymap: TuiPluginApi["keymap"];
+  readonly keymap: Plugin.Context["keymap"];
   readonly ui: TreeBranchSummaryDialogUI;
-  readonly theme: TuiThemeCurrent;
+  readonly theme: TreeTheme;
   readonly onClose: () => void;
   readonly onCancelBusy: () => void;
   readonly onSelect: (request: TreeBranchSummaryRequest) => Promise<void> | void;
@@ -68,7 +69,7 @@ export function TreeBranchSummaryDialog(props: TreeBranchSummaryDialogProps) {
   let textarea: TextareaRenderable | undefined;
 
   onMount(() => {
-    props.ui.dialog.setSize("medium");
+    props.ui.dialog.set({ size: "medium" });
   });
 
   onCleanup(() => {
@@ -103,48 +104,36 @@ export function TreeBranchSummaryDialog(props: TreeBranchSummaryDialogProps) {
     }, 1);
   });
 
-  createEffect(() => {
-    const off = props.keymap.registerLayer({
-      priority: 100,
-      commands: [
-        {
-          name: branchSummaryDialogCommands.move_up,
-          hidden: true,
-          enabled: () => !busy() && mode() === "select",
-          run: moveSelectionUp,
-        },
-        {
-          name: branchSummaryDialogCommands.move_down,
-          hidden: true,
-          enabled: () => !busy() && mode() === "select",
-          run: moveSelectionDown,
-        },
-        {
-          name: branchSummaryDialogCommands.select,
-          hidden: true,
-          enabled: () => !busy(),
-          run: runSelectCommand,
-        },
-        {
-          name: branchSummaryDialogCommands.back,
-          hidden: true,
-          run: runBackCommand,
-        },
-      ],
-      bindings: [
-        ...getTreeKeybindBindings(props.keybinds, "move_up", branchSummaryDialogCommands.move_up),
-        ...getTreeKeybindBindings(
-          props.keybinds,
-          "move_down",
-          branchSummaryDialogCommands.move_down,
-        ),
-        ...getTreeKeybindBindings(props.keybinds, "select", branchSummaryDialogCommands.select),
-        ...getTreeKeybindBindings(props.keybinds, "back", branchSummaryDialogCommands.back),
-      ],
-    });
-
-    onCleanup(off);
-  });
+  props.keymap.layer(() => ({
+    mode: "global",
+    priority: 100,
+    commands: [
+      {
+        id: branchSummaryDialogCommands.move_up,
+        bind: props.keybinds.move_up,
+        enabled: () => !busy() && mode() === "select",
+        run: moveSelectionUp,
+      },
+      {
+        id: branchSummaryDialogCommands.move_down,
+        bind: props.keybinds.move_down,
+        enabled: () => !busy() && mode() === "select",
+        run: moveSelectionDown,
+      },
+      {
+        id: branchSummaryDialogCommands.select,
+        bind: props.keybinds.select,
+        enabled: () => !busy(),
+        run: runSelectCommand,
+      },
+      {
+        id: branchSummaryDialogCommands.back,
+        bind: props.keybinds.back,
+        run: runBackCommand,
+      },
+    ],
+    bindings: Object.values(branchSummaryDialogCommands),
+  }));
 
   const selectOption = async (option: TreeBranchSummaryDialogOption) => {
     if (busy()) return;

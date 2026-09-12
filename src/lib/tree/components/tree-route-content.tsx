@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 
-import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui";
+import type { TreeTheme } from "../theme";
 import { Show } from "solid-js";
 import { TreeView } from "./tree-view";
 import type { TreeFlatRow } from "../flatten";
@@ -49,7 +49,7 @@ export type TreeRouteStatusPanelProps = {
 export type TreeRouteBodyProps = {
   readonly state: TreeRouteBodyState;
   readonly palette: TreeThemePalette;
-  readonly theme: () => TuiThemeCurrent;
+  readonly theme: () => TreeTheme;
   readonly selectedIndex: number | undefined;
   readonly treeWidth: number;
   readonly onFocusChange: (focused: boolean) => void;

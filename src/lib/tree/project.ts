@@ -1,8 +1,10 @@
-import type { TuiState } from "@opencode-ai/plugin/tui";
 import type { SessionTranscript, SessionTranscriptMap } from "../opencode/messages";
 import type { TreeSnapshot } from "../storage";
 
-export type OpenCodePathState = Pick<TuiState["path"], "worktree" | "directory">;
+export type OpenCodePathState = {
+  readonly worktree: string;
+  readonly directory: string;
+};
 
 export type ProjectedMessageNode = {
   readonly kind: "message";

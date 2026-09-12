@@ -7,7 +7,7 @@ import type {
   ReasoningPart,
   ToolPart,
   UserMessage,
-} from "@opencode-ai/sdk/v2";
+} from "../../src/lib/opencode/messages";
 import {
   createSessionTranscript,
   createSessionMessagesPageLoader,
@@ -220,47 +220,28 @@ describe("loadSessionTranscript", () => {
   });
 });
 
-function createMessagesResult(input: {
-  status: number;
-  data?: Array<{ info: UserMessage; parts: Part[] }>;
-  error?: unknown;
-  nextCursor?: string;
-}) {
-  const headers = new Headers();
-  if (input.nextCursor) {
-    headers.set("x-next-cursor", input.nextCursor);
-  }
-
+function createMessagesClient(result: unknown, error?: unknown): OpencodeClient {
   return {
-    data: input.data,
-    error: input.error,
-    request: new Request("http://localhost/session/test/message"),
-    response: new Response(null, { status: input.status, headers }),
-  };
-}
-
-function createMessagesClient(result: ReturnType<typeof createMessagesResult>): OpencodeClient {
-  return {
-    session: {
-      messages: async () => result,
+    message: {
+      list: async () => {
+        if (error) throw error;
+        return result;
+      },
     },
   } as unknown as OpencodeClient;
+}
+
+function createV2UserMessage(id: string, created: number, text = "") {
+  return { id, type: "user" as const, time: { created }, text };
 }
 
 describe("createSessionMessagesPageLoader", () => {
   test("treats 404 session message responses as deleted sessions", async () => {
     const loadPage = createSessionMessagesPageLoader(
-      createMessagesClient(
-        createMessagesResult({
-          status: 404,
-          error: {
-            name: "NotFoundError",
-            data: {
-              message: "Session not found",
-            },
-          },
-        }),
-      ),
+      createMessagesClient(undefined, {
+        _tag: "SessionNotFoundError",
+        message: "Session not found",
+      }),
     );
 
     await expect(loadPage({ sessionId: "sess_deleted", limit: 100 })).resolves.toEqual({
@@ -271,42 +252,63 @@ describe("createSessionMessagesPageLoader", () => {
 
   test("throws on non-404 message loading failures", async () => {
     const loadPage = createSessionMessagesPageLoader(
-      createMessagesClient(
-        createMessagesResult({
-          status: 400,
-          error: {
-            name: "BadRequestError",
-            data: {
-              message: "Bad cursor",
-            },
-          },
-        }),
-      ),
+      createMessagesClient(undefined, new Error("Bad cursor")),
     );
 
-    await expect(loadPage({ sessionId: "sess_root", limit: 100 })).rejects.toThrow(
-      "Failed to load messages for session sess_root (400): Bad cursor",
-    );
+    await expect(loadPage({ sessionId: "sess_root", limit: 100 })).rejects.toThrow("Bad cursor");
   });
 
   test("preserves API page order and leaves ordering to transcript load", async () => {
     const loadPage = createSessionMessagesPageLoader(
-      createMessagesClient(
-        createMessagesResult({
-          status: 200,
-          data: [
-            { info: createUserMessage("msg_02", "sess_root", 20), parts: [] },
-            { info: createUserMessage("msg_01", "sess_root", 10), parts: [] },
-          ],
-        }),
-      ),
+      createMessagesClient({
+        data: [createV2UserMessage("msg_02", 20), createV2UserMessage("msg_01", 10)],
+        cursor: {},
+      }),
     );
 
     await expect(loadPage({ sessionId: "sess_root", limit: 100 })).resolves.toEqual({
       status: "available",
       items: [
-        createMessageRecord("msg_02", "sess_root", 20),
-        createMessageRecord("msg_01", "sess_root", 10),
+        {
+          info: { ...createV2UserMessage("msg_02", 20), role: "user" },
+          parts: [{ type: "text", text: "" }],
+        },
+        {
+          info: { ...createV2UserMessage("msg_01", 10), role: "user" },
+          parts: [{ type: "text", text: "" }],
+        },
+      ],
+    });
+  });
+
+  test("keeps synthetic branch summaries in the transcript", async () => {
+    const loadPage = createSessionMessagesPageLoader(
+      createMessagesClient({
+        data: [
+          {
+            id: "msg_summary",
+            type: "synthetic",
+            time: { created: 30 },
+            text: "The user explored a different conversation branch.",
+          },
+        ],
+        cursor: {},
+      }),
+    );
+
+    await expect(loadPage({ sessionId: "sess_root", limit: 100 })).resolves.toEqual({
+      status: "available",
+      items: [
+        {
+          info: {
+            id: "msg_summary",
+            type: "synthetic",
+            time: { created: 30 },
+            text: "The user explored a different conversation branch.",
+            role: "user",
+          },
+          parts: [{ type: "text", text: "The user explored a different conversation branch." }],
+        },
       ],
     });
   });

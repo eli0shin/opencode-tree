@@ -1,9 +1,10 @@
 /** @jsxImportSource @opentui/solid */
 
 import { ScrollBoxRenderable, TextAttributes } from "@opentui/core";
-import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui";
+import type { RGBA } from "@opentui/core";
 import { createEffect, createMemo, For, on, onCleanup, onMount } from "solid-js";
 import type { TreeFlatRow } from "../flatten";
+import type { TreeTheme } from "../theme";
 import { formatTreeRowParts } from "../layout";
 import {
   getTreeRowBackground,
@@ -16,7 +17,7 @@ export type TreeViewProps = {
   readonly rows: readonly TreeFlatRow[];
   readonly selectedIndex?: number;
   readonly width: number;
-  readonly theme: () => TuiThemeCurrent;
+  readonly theme: () => TreeTheme;
   readonly autoFocus?: boolean;
   readonly onFocusChange?: (focused: boolean) => void;
 };
@@ -24,10 +25,10 @@ export type TreeViewProps = {
 type RenderedTreeRow = {
   readonly id: string;
   readonly selected: boolean;
-  readonly backgroundColor?: TuiThemeCurrent["backgroundElement"];
-  readonly borderColor?: TuiThemeCurrent["borderActive"];
-  readonly guideColor: TuiThemeCurrent["primary"];
-  readonly foregroundColor: TuiThemeCurrent["text"];
+  readonly backgroundColor?: RGBA;
+  readonly borderColor?: RGBA;
+  readonly guideColor: RGBA;
+  readonly foregroundColor: RGBA;
   readonly attributes?: typeof TextAttributes.BOLD;
   readonly parts: ReturnType<typeof formatTreeRowParts>;
 };

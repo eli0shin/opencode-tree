@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
-import type { TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui";
-import type { OpencodeClient } from "@opencode-ai/sdk/v2";
+import type { Plugin } from "@opencode/plugin/tui";
+import type { OpenCodeClient } from "@opencode/client";
 import {
   createComponent,
   createEffect,
@@ -23,6 +23,7 @@ import {
 } from "./components/branch-summary-dialog";
 import type { TreeFlatRow } from "./flatten";
 import type { TreeKeybindName, TreeKeybinds } from "./keybinds";
+import type { TreeTheme } from "./theme";
 
 type TreeForkAction = Extract<TreeBranchAction, { kind: "fork" }>;
 
@@ -45,12 +46,12 @@ export type TreeRouteBusyState =
     };
 
 export type TreeRouteBranchControllerInput = {
-  readonly client: OpencodeClient;
+  readonly client: OpenCodeClient;
   readonly keybinds: TreeKeybinds;
   readonly keybindLabel: (name: TreeKeybindName) => string;
-  readonly keymap: TuiPluginApi["keymap"];
-  readonly ui: Pick<TuiPluginApi["ui"], "dialog"> & TreeBranchSummaryDialogUI;
-  readonly theme: Accessor<TuiThemeCurrent>;
+  readonly keymap: Plugin.Context["keymap"];
+  readonly ui: Pick<Plugin.Context["ui"], "dialog" | "toast"> & TreeBranchSummaryDialogUI;
+  readonly theme: Accessor<TreeTheme>;
   readonly navigateToSession: (sessionId: string) => void | Promise<void>;
   readonly bootstrap: Accessor<TreeBootstrapResult | undefined>;
   readonly projectedTreeData: Accessor<
@@ -87,10 +88,7 @@ export function createTreeRouteBranchController(
 
   const closeSummaryDialog = () => {
     setSummaryDialogAction(undefined);
-
-    if (input.ui.dialog.open) {
-      input.ui.dialog.clear();
-    }
+    input.ui.dialog.clear();
   };
 
   const runTreeBranchAction = (action: TreeBranchAction) => {
@@ -109,6 +107,8 @@ export function createTreeRouteBranchController(
       {
         client: input.client,
         navigateToSession: input.navigateToSession,
+        showToast: (toast) => input.ui.toast.show(toast),
+        editPrompt: (text) => input.ui.dialog.prompt({ title: "Edit branch prompt", value: text }),
       },
     )
       .catch((error) => {
@@ -152,6 +152,9 @@ export function createTreeRouteBranchController(
         {
           client: input.client,
           navigateToSession: input.navigateToSession,
+          showToast: (toast) => input.ui.toast.show(toast),
+          editPrompt: (text) =>
+            input.ui.dialog.prompt({ title: "Edit branch prompt", value: text }),
         },
       );
 
@@ -192,7 +195,7 @@ export function createTreeRouteBranchController(
     on(summaryDialogAction, (nextDialogAction) => {
       if (!nextDialogAction) return;
 
-      input.ui.dialog.replace(
+      input.ui.dialog.show(
         () =>
           createComponent(TreeBranchSummaryDialog, {
             keybinds: input.keybinds,
