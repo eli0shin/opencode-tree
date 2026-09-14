@@ -112,7 +112,7 @@ export function createSessionMessagesPageLoader(
       const result = await client.message.list({
         sessionID: input.sessionId,
         limit: input.limit,
-        order: "desc",
+        ...(!input.before && { order: "desc" as const }),
         cursor: input.before,
       });
 

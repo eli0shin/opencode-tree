@@ -26,7 +26,6 @@ type BranchTestClient = {
   readonly deleteSession: ReturnType<typeof mock>;
   readonly appendPrompt: ReturnType<typeof mock>;
   readonly showToast: ReturnType<typeof mock>;
-  readonly editPrompt: ReturnType<typeof mock>;
 };
 
 function createClient() {
@@ -35,7 +34,6 @@ function createClient() {
   const syntheticSession = mock(async () => ({ id: "inbox_summary" }));
   const deleteSession = mock(async () => undefined);
   const showToast = mock(() => {});
-  const editPrompt = mock(async (text: string) => text);
 
   return {
     client: {
@@ -52,12 +50,11 @@ function createClient() {
     deleteSession,
     appendPrompt: promptSession,
     showToast,
-    editPrompt,
   } satisfies BranchTestClient;
 }
 
 describe("executeTreeBranchAction", () => {
-  test("forks, persists tree state, navigates, and appends prompt text", async () => {
+  test("forks, persists tree state, and navigates without replaying prompt text", async () => {
     const client = createClient();
     const navigateToSession = mock(() => {});
     const storageRoot = "/state/opencode/plugins/opencode-tree/projects/repo-123";
@@ -76,7 +73,6 @@ describe("executeTreeBranchAction", () => {
             sessionId: "sess_root",
             anchorMessageId: "msg_user",
             forkMessageId: "msg_user",
-            appendPromptText: "hello branch",
           },
         },
         projectRoot: "/repo",
@@ -87,7 +83,6 @@ describe("executeTreeBranchAction", () => {
         client: client.client,
         navigateToSession,
         showToast: client.showToast,
-        editPrompt: client.editPrompt,
         storage: {
           readRegistry: async () => ({
             version: 1,
@@ -132,11 +127,7 @@ describe("executeTreeBranchAction", () => {
       },
     });
     expect(navigateToSession).toHaveBeenCalledWith("sess_child");
-    expect(client.editPrompt).toHaveBeenCalledWith("hello branch");
-    expect(client.appendPrompt).toHaveBeenCalledWith({
-      sessionID: "sess_child",
-      text: "hello branch",
-    });
+    expect(client.appendPrompt).not.toHaveBeenCalled();
   });
 
   test("switches session without forking when action says switch-session", async () => {
@@ -157,7 +148,6 @@ describe("executeTreeBranchAction", () => {
         client: client.client,
         navigateToSession,
         showToast: client.showToast,
-        editPrompt: client.editPrompt,
       },
     );
 
@@ -183,7 +173,6 @@ describe("executeTreeBranchAction", () => {
         client: client.client,
         navigateToSession,
         showToast: client.showToast,
-        editPrompt: client.editPrompt,
       },
     );
 
@@ -211,7 +200,6 @@ describe("executeTreeBranchAction", () => {
         client: client.client,
         navigateToSession: () => {},
         showToast: client.showToast,
-        editPrompt: client.editPrompt,
       },
     );
 
@@ -221,7 +209,7 @@ describe("executeTreeBranchAction", () => {
     });
   });
 
-  test("generates summary, injects it into the forked session, and then replays user text", async () => {
+  test("generates summary and injects it without replaying user text", async () => {
     const client = createClient();
     const navigateToSession = mock(() => {});
     const storageRoot = "/state/opencode/plugins/opencode-tree/projects/repo-123";
@@ -239,7 +227,6 @@ describe("executeTreeBranchAction", () => {
           sessionId: "sess_root",
           anchorMessageId: "msg_user",
           forkMessageId: "msg_user",
-          appendPromptText: "hello branch",
         },
         projectRoot: "/repo",
         storageRoot,
@@ -252,7 +239,6 @@ describe("executeTreeBranchAction", () => {
         generateSummary,
         navigateToSession,
         showToast: client.showToast,
-        editPrompt: client.editPrompt,
         storage: {
           readRegistry: async () => ({
             version: 1,
@@ -286,10 +272,7 @@ describe("executeTreeBranchAction", () => {
     expect(writeSnapshot).toHaveBeenCalled();
     expect(writeRegistry).toHaveBeenCalled();
     expect(navigateToSession).toHaveBeenCalledWith("sess_child");
-    expect(client.appendPrompt).toHaveBeenCalledWith({
-      sessionID: "sess_child",
-      text: "hello branch",
-    });
+    expect(client.appendPrompt).not.toHaveBeenCalled();
   });
 
   test("does not fork when summary generation fails", async () => {
@@ -315,7 +298,6 @@ describe("executeTreeBranchAction", () => {
           },
           navigateToSession: () => {},
           showToast: client.showToast,
-          editPrompt: client.editPrompt,
         },
       ),
     ).rejects.toThrow("summary failed");
@@ -348,7 +330,6 @@ describe("executeTreeBranchAction", () => {
           generateSummary: async () => "## Goal\nShip it",
           navigateToSession: () => {},
           showToast: client.showToast,
-          editPrompt: client.editPrompt,
         },
       ),
     ).rejects.toThrow("inject failed");

@@ -1,5 +1,4 @@
 import {
-  getMessageTextReplay,
   type SessionMessageRecord,
   type SessionTranscript,
   type SessionTranscriptMap,
@@ -10,7 +9,6 @@ export type TreeBranchForkPlan = {
   readonly sessionId: string;
   readonly anchorMessageId: string;
   readonly forkMessageId: string;
-  readonly appendPromptText?: string;
 };
 
 export type TreeBranchAction =
@@ -77,8 +75,7 @@ export function planTreeBranchAction(input: PlanTreeBranchActionInput): TreeBran
   }
 
   const transcript = input.transcripts[row.sessionId];
-  const record = transcript?.messageById.get(row.messageId);
-  if (!record) {
+  if (!transcript?.messageById.has(row.messageId)) {
     return {
       kind: "show-notice",
       message: `Message ${row.messageId} is unavailable.`,
@@ -93,7 +90,6 @@ export function planTreeBranchAction(input: PlanTreeBranchActionInput): TreeBran
         sessionId: row.sessionId,
         anchorMessageId: row.messageId,
         forkMessageId: row.messageId,
-        appendPromptText: getMessageTextReplay(record.parts),
       },
     };
   }

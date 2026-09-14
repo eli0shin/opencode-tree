@@ -10,27 +10,20 @@
     "url": "git+https://github.com/eli0shin/opencode-tree.git"
   },
   "files": [
-    "dist",
+    "src",
+    "tsconfig.json",
     "README.md"
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/tui.d.ts",
-      "import": "./dist/tui.js"
-    },
-    "./tui": {
-      "types": "./dist/tui.d.ts",
-      "import": "./dist/tui.js"
-    }
+    ".": "./src/index.ts",
+    "./tui": "./src/tui.ts"
   },
   "scripts": {
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "build": "bun run scripts/build.ts",
     "typecheck": "bun x tsc -p tsconfig.json",
-    "test": "bun test",
-    "prepack": "bun run build"
+    "test": "bun test"
   },
   "dependencies": {
     "@opencode/plugin": "^2.0.0",

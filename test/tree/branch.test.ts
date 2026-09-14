@@ -118,7 +118,7 @@ const transcripts: SessionTranscriptMap = {
 };
 
 describe("planTreeBranchAction", () => {
-  test("forks user message at selected message and replays text", () => {
+  test("forks before the selected user message", () => {
     expect(
       planTreeBranchAction({
         row: createMessageRow({
@@ -135,7 +135,6 @@ describe("planTreeBranchAction", () => {
         sessionId: "sess_root",
         anchorMessageId: "msg_user",
         forkMessageId: "msg_user",
-        appendPromptText: "hello branch",
       },
     });
   });

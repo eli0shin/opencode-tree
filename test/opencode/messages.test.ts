@@ -236,6 +236,28 @@ function createV2UserMessage(id: string, created: number, text = "") {
 }
 
 describe("createSessionMessagesPageLoader", () => {
+  test("does not combine a continuation cursor with page order", async () => {
+    const calls: unknown[] = [];
+    const loadPage = createSessionMessagesPageLoader({
+      message: {
+        list: async (input: unknown) => {
+          calls.push(input);
+          return { data: [], cursor: {} };
+        },
+      },
+    } as unknown as OpencodeClient);
+
+    await loadPage({ sessionId: "sess_root", before: "cursor_01", limit: 100 });
+
+    expect(calls).toEqual([
+      {
+        sessionID: "sess_root",
+        limit: 100,
+        cursor: "cursor_01",
+      },
+    ]);
+  });
+
   test("treats 404 session message responses as deleted sessions", async () => {
     const loadPage = createSessionMessagesPageLoader(
       createMessagesClient(undefined, {

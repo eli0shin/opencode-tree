@@ -22,30 +22,36 @@ export default Plugin.define({
     const pluginOptions = parseTreePluginOptions(context.options);
     const treeKeybinds = createTreeKeybinds(pluginOptions.keybinds);
 
-    context.keymap.layer(() => ({
-      mode: "global",
-      commands: [
-        {
-          id: "tree.open",
-          title: "Tree",
-          group: "Plugin",
-          palette: true,
-          slash: { name: "tree" },
-          suggested: () => isSessionRoute(context.ui.router.current()),
-          enabled: () => isSessionRoute(context.ui.router.current()),
-          run: () => {
-            context.ui.router.navigate({
-              type: "plugin",
-              name: routeName,
-              data: getTreeRouteParamsForNavigation(context.ui.router.current()),
-            });
-            context.ui.dialog.clear();
-          },
-        },
-      ],
-    }));
+    const unregisterCommands = context.ui.slot({
+      append: "app",
+      render: () => {
+        context.keymap.layer(() => ({
+          mode: "global",
+          commands: [
+            {
+              id: "tree.open",
+              title: "Tree",
+              group: "Plugin",
+              palette: true,
+              slash: { name: "tree" },
+              suggested: () => isSessionRoute(context.ui.router.current()),
+              enabled: () => isSessionRoute(context.ui.router.current()),
+              run: () => {
+                context.ui.router.navigate({
+                  type: "plugin",
+                  name: routeName,
+                  data: getTreeRouteParamsForNavigation(context.ui.router.current()),
+                });
+                context.ui.dialog.clear();
+              },
+            },
+          ],
+        }));
+        return null;
+      },
+    });
 
-    return context.ui.router.register({
+    const unregisterRoute = context.ui.router.register({
       name: routeName,
       render: ({ data }) => {
         const routeParams = parseTreeRouteParams(data);
@@ -76,6 +82,11 @@ export default Plugin.define({
         });
       },
     });
+
+    return () => {
+      unregisterCommands();
+      unregisterRoute();
+    };
   },
 });
 

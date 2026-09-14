@@ -34,7 +34,6 @@ export type ExecuteTreeBranchActionDependencies = {
     message: string;
     variant: "info" | "success" | "warning" | "error";
   }) => void;
-  readonly editPrompt: (text: string) => Promise<string | undefined>;
   readonly navigateToSession: (sessionId: string) => void | Promise<void>;
   readonly generateSummary?: typeof generateTreeBranchSummary;
   readonly storage?: TreeBranchStorage;
@@ -49,13 +48,10 @@ export type ExecuteTreeForkPlanInput = {
 
 export type TreeForkExecutionResult = {
   readonly forkedSessionId: string;
-  readonly appendPromptText?: string;
 };
 
 export type CompleteTreeForkTransitionInput = {
   readonly forkedSessionId: string;
-  readonly appendPromptText?: string;
-  readonly projectRoot: string;
 };
 
 export type ExecuteTreeSummaryForkInput = {
@@ -108,8 +104,6 @@ export async function executeTreeBranchAction(
   await completeTreeForkTransition(
     {
       forkedSessionId: forked.forkedSessionId,
-      appendPromptText: forked.appendPromptText,
-      projectRoot: input.projectRoot,
     },
     dependencies,
   );
@@ -130,7 +124,6 @@ export async function executeTreeForkPlan(
 
   return {
     forkedSessionId,
-    appendPromptText: input.plan.appendPromptText,
   };
 }
 
@@ -167,8 +160,6 @@ export async function executeTreeSummaryFork(
   await completeTreeForkTransition(
     {
       forkedSessionId,
-      appendPromptText: input.plan.appendPromptText,
-      projectRoot: input.projectRoot,
     },
     dependencies,
   );
@@ -176,28 +167,9 @@ export async function executeTreeSummaryFork(
 
 export async function completeTreeForkTransition(
   input: CompleteTreeForkTransitionInput,
-  dependencies: Pick<
-    ExecuteTreeBranchActionDependencies,
-    "client" | "navigateToSession" | "editPrompt"
-  >,
+  dependencies: Pick<ExecuteTreeBranchActionDependencies, "navigateToSession">,
 ): Promise<void> {
   await dependencies.navigateToSession(input.forkedSessionId);
-
-  if (!input.appendPromptText) return;
-
-  await waitForRouteTransition();
-  const promptText = await dependencies.editPrompt(input.appendPromptText);
-  if (!promptText) return;
-  await dependencies.client.session.prompt({
-    sessionID: input.forkedSessionId,
-    text: promptText,
-  });
-}
-
-function waitForRouteTransition(): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
 }
 
 async function forkTreeSession(

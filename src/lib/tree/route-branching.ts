@@ -108,7 +108,6 @@ export function createTreeRouteBranchController(
         client: input.client,
         navigateToSession: input.navigateToSession,
         showToast: (toast) => input.ui.toast.show(toast),
-        editPrompt: (text) => input.ui.dialog.prompt({ title: "Edit branch prompt", value: text }),
       },
     )
       .catch((error) => {
@@ -153,8 +152,6 @@ export function createTreeRouteBranchController(
           client: input.client,
           navigateToSession: input.navigateToSession,
           showToast: (toast) => input.ui.toast.show(toast),
-          editPrompt: (text) =>
-            input.ui.dialog.prompt({ title: "Edit branch prompt", value: text }),
         },
       );
 

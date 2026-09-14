@@ -4,6 +4,7 @@ import type { TreeFlatRow } from "./flatten";
 
 export type TreeTheme = {
   readonly text: RGBA;
+  readonly textSelected: RGBA;
   readonly textMuted: RGBA;
   readonly background: RGBA;
   readonly backgroundElement: RGBA;
@@ -20,9 +21,10 @@ export type TreeTheme = {
 export function createTreeTheme(theme: ResolvedTheme): TreeTheme {
   return {
     text: theme.text.default,
+    textSelected: theme.text.action.primary.focused,
     textMuted: theme.text.subdued,
     background: theme.background.default,
-    backgroundElement: theme.background.action.primary.default,
+    backgroundElement: theme.background.action.primary.focused,
     borderSubtle: theme.border.default,
     borderActive: theme.text.action.primary.default,
     primary: theme.text.action.primary.default,
@@ -76,8 +78,10 @@ export function mapTreeTheme(theme: TreeTheme): TreeThemePalette {
 export function getTreeRowForeground(
   theme: TreeTheme,
   row: TreeFlatRow,
-  _state: TreeRowStyleState,
+  state: TreeRowStyleState,
 ): RGBA {
+  if (state.selected) return theme.textSelected;
+
   if (row.kind === "session") {
     if (row.isDeleted) return theme.error;
     return theme.secondary;

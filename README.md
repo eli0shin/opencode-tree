@@ -13,29 +13,20 @@
 
 ## Installation
 
-Clone this repository and build the plugin:
-
-```bash
-git clone https://github.com/eli0shin/opencode-tree.git
-cd opencode-tree
-bun install
-bun run build
-```
-
-Add the checkout path to `~/.config/opencode/cli.json`:
+Add the GitHub reference to `~/.config/opencode/opencode.json`:
 
 ```json
 {
-  "$schema": "https://opencode.ai/v2/cli.json",
-  "plugins": ["/absolute/path/to/opencode-tree"]
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["github:eli0shin/opencode-tree"]
 }
 ```
 
-This is a CLI plugin. Do not add it to `opencode.json`; that file configures server plugins.
+OpenCode installs the package and loads its TUI source directly. No clone or build step is needed.
 
 ## Configuration
 
-`~/.config/opencode/cli.json`
+`~/.config/opencode/opencode.json`
 
 By default, tree state is saved [globally](#global-storage).
 
@@ -45,7 +36,7 @@ To save it in the current project’s `.opencode` folder instead, set `storageSc
 {
   "plugins": [
     {
-      "package": "/absolute/path/to/opencode-tree",
+      "package": "github:eli0shin/opencode-tree",
       "options": { "storageScope": "local" }
     }
   ]
@@ -60,7 +51,7 @@ All options are optional. This example shows the default values:
 {
   "plugins": [
     {
-      "package": "/absolute/path/to/opencode-tree",
+      "package": "github:eli0shin/opencode-tree",
       "options": {
         "storageScope": "global",
         "lines_per_jump": 20,

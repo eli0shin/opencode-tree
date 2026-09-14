@@ -270,10 +270,12 @@ export function TreeBranchSummaryDialog(props: TreeBranchSummaryDialogProps) {
                     paddingBottom={1}
                     backgroundColor={selected() ? props.theme.backgroundElement : undefined}
                   >
-                    <text fg={selected() ? props.theme.primary : props.theme.text}>
+                    <text fg={selected() ? props.theme.textSelected : props.theme.text}>
                       {option.title}
                     </text>
-                    <text fg={props.theme.textMuted}>{option.description}</text>
+                    <text fg={selected() ? props.theme.textSelected : props.theme.textMuted}>
+                      {option.description}
+                    </text>
                   </box>
                 );
               }}
