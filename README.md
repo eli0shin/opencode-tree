@@ -22,7 +22,7 @@ Add the GitHub reference to `~/.config/opencode/opencode.json`:
 }
 ```
 
-OpenCode installs the package and loads its TUI source directly. No clone or build step is needed.
+OpenCode installs the package and loads its precompiled TUI code. No manual clone or compile step is needed.
 
 ## Configuration
 
