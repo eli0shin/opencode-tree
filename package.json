@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@eli0shin/opencode-tree",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Pi-style /tree plugin for OpenCode TUI.",
   "homepage": "https://github.com/eli0shin/opencode-tree#readme",
   "license": "MIT",
@@ -10,18 +10,19 @@
     "url": "git+https://github.com/eli0shin/opencode-tree.git"
   },
   "files": [
-    "src",
-    "tsconfig.json",
+    "dist",
     "README.md"
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./tui": "./src/tui.ts"
+    ".": "./dist/index.js",
+    "./tui": "./dist/tui.js"
   },
   "scripts": {
-    "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check",
+    "build": "bun scripts/build.ts",
+    "fmt": "oxfmt . '!dist/**'",
+    "fmt:check": "oxfmt --check . '!dist/**'",
+    "test:e2e:installed": "bash scripts/test-installed-tui.sh",
     "typecheck": "bun x tsc -p tsconfig.json",
     "test": "bun test"
   },

@@ -3,7 +3,7 @@
     "lib": ["ESNext"],
     "target": "ES2022",
     "module": "ESNext",
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "jsxImportSource": "@opentui/solid",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
