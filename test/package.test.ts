@@ -8,6 +8,8 @@ describe("package manifest", () => {
 
     expect(manifest.peerDependencies["@opentui/core"]).toBeDefined();
     expect(manifest.peerDependencies["@opentui/solid"]).toBeDefined();
+    expect(manifest.peerDependencies["solid-js"]).toBeDefined();
+    expect((manifest.dependencies as Record<string, string>)["solid-js"]).toBeUndefined();
     expect(metadata?.["@opentui/core"]?.optional).not.toBe(true);
     expect(metadata?.["@opentui/solid"]?.optional).not.toBe(true);
   });

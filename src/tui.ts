@@ -71,6 +71,7 @@ export default Plugin.define({
             linesPerJump: pluginOptions.lines_per_jump,
           },
           keymap: context.keymap,
+          renderer: context.renderer,
           ui: context.ui,
           projectRoot,
           theme: () => createTreeTheme(context.theme),

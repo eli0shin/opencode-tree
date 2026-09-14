@@ -2,7 +2,7 @@
 
 import type { Plugin } from "@opencode/plugin/tui";
 import type { OpenCodeClient } from "@opencode/client";
-import { useTerminalDimensions } from "@opentui/solid";
+import { CliRenderEvents, type CliRenderer } from "@opentui/core";
 import {
   createEffect,
   createMemo,
@@ -57,6 +57,7 @@ export type TreeRouteProps = {
     readonly linesPerJump: number;
   };
   readonly keymap: Plugin.Context["keymap"];
+  readonly renderer: CliRenderer;
   readonly ui: Pick<Plugin.Context["ui"], "dialog" | "toast"> & TreeBranchSummaryDialogUI;
   readonly projectRoot?: string;
   readonly sessionID?: string;
@@ -77,7 +78,10 @@ export function TreeRoute(props: TreeRouteProps) {
     new Set(),
   );
   const [treeFocused, setTreeFocused] = createSignal(false);
-  const dimensions = useTerminalDimensions();
+  const [terminalWidth, setTerminalWidth] = createSignal(props.renderer.width);
+  const handleResize = () => setTerminalWidth(props.renderer.width);
+  props.renderer.on(CliRenderEvents.RESIZE, handleResize);
+  onCleanup(() => props.renderer.off(CliRenderEvents.RESIZE, handleResize));
 
   const theme = createMemo(() => props.theme());
   const palette = createMemo(() => mapTreeTheme(theme()));
@@ -161,7 +165,7 @@ export function TreeRoute(props: TreeRouteProps) {
     if (index === undefined) return undefined;
     return flatTree()?.rows[index];
   });
-  const treeWidth = createMemo(() => getTreeContentWidth(dimensions().width));
+  const treeWidth = createMemo(() => getTreeContentWidth(terminalWidth()));
   const bodyState = createMemo(() =>
     resolveTreeRouteBodyState({
       projectRoot: props.projectRoot,
