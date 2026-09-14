@@ -161,12 +161,16 @@ function createRootSnapshot(): TreeSnapshot {
 }
 
 describe("buildFlatRows preview", () => {
-  function buildRows(transcripts: SessionTranscriptMap) {
+  function buildRows(
+    transcripts: SessionTranscriptMap,
+    options: Parameters<typeof buildFlatRows>[2] = {},
+  ) {
     return buildFlatRows(
       buildVisibleTree(projectSessionTree(createRootSnapshot(), transcripts), {
         collapsedSessionIds: new Set(),
       }).root,
       "sess_root",
+      options,
     ).rows;
   }
 
@@ -191,7 +195,7 @@ describe("buildFlatRows preview", () => {
       }),
     };
 
-    const rows = buildRows(transcripts);
+    const rows = buildRows(transcripts, { showToolTurns: true });
     const toolRow = rows[1];
 
     expect(toolRow).toBeDefined();
@@ -205,6 +209,44 @@ describe("buildFlatRows preview", () => {
 
     expect(toolRow.preview).toStartWith("tool:bash command=printf 'a");
     expect(toolRow.preview).not.toContain("\n");
+  });
+
+  test("hides tool turns by default and shows them when requested", () => {
+    const transcripts: SessionTranscriptMap = {
+      sess_root: createSessionTranscript({
+        sessionId: "sess_root",
+        status: "available",
+        messages: [
+          {
+            info: createUserMessage("msg_user", "sess_root", 10),
+            parts: [createTextPart("msg_user", "sess_root", "inspect the tree")],
+          },
+          {
+            info: createAssistantMessage("msg_tool", "sess_root", 20, "msg_user"),
+            parts: [
+              createTextPart("msg_tool", "sess_root", "I will inspect it."),
+              createToolPart("msg_tool", "sess_root", "read", { path: "src/lib/tree" }),
+            ],
+          },
+          {
+            info: createAssistantMessage("msg_reply", "sess_root", 30, "msg_user"),
+            parts: [createTextPart("msg_reply", "sess_root", "The tree is ready.")],
+          },
+        ],
+      }),
+    };
+
+    expect(buildRows(transcripts).map((row) => row.id)).toEqual([
+      "session:sess_root",
+      "message:sess_root:msg_user",
+      "message:sess_root:msg_reply",
+    ]);
+    expect(buildRows(transcripts, { showToolTurns: true }).map((row) => row.id)).toEqual([
+      "session:sess_root",
+      "message:sess_root:msg_user",
+      "message:sess_root:msg_tool",
+      "message:sess_root:msg_reply",
+    ]);
   });
 
   test("falls back to reasoning text when assistant has no text or tool", () => {

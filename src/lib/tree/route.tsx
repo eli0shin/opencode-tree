@@ -77,6 +77,7 @@ export function TreeRoute(props: TreeRouteProps) {
   const [collapsedSessionIds, setCollapsedSessionIds] = createSignal<ReadonlySet<string>>(
     new Set(),
   );
+  const [showToolTurns, setShowToolTurns] = createSignal(false);
   const [treeFocused, setTreeFocused] = createSignal(false);
   const [terminalWidth, setTerminalWidth] = createSignal(props.renderer.width);
   const handleResize = () => setTerminalWidth(props.renderer.width);
@@ -152,6 +153,7 @@ export function TreeRoute(props: TreeRouteProps) {
     if (!nextVisibleTree) return undefined;
     return buildFlatRows(nextVisibleTree.root, props.sessionID ?? "", {
       messagePreviewByRowId: treeIndex?.messagePreviewByRowId,
+      showToolTurns: showToolTurns(),
     });
   });
   const rows = createMemo<readonly TreeFlatRow[]>(() => flatTree()?.rows ?? []);
@@ -264,6 +266,14 @@ export function TreeRoute(props: TreeRouteProps) {
         run: expandSelectedSession,
       },
       {
+        id: treeKeybindCommands.toggle_tools,
+        bind: props.config.keybinds.toggle_tools,
+        enabled: canUseTreeRows,
+        run: () => {
+          setShowToolTurns((current) => !current);
+        },
+      },
+      {
         id: treeKeybindCommands.select,
         bind: props.config.keybinds.select,
         enabled: canUseTreeRows,
@@ -292,6 +302,8 @@ export function TreeRoute(props: TreeRouteProps) {
         moveDownKeybind={props.config.keybindLabel("move_down")}
         collapseKeybind={props.config.keybindLabel("collapse")}
         expandKeybind={props.config.keybindLabel("expand")}
+        toggleToolsKeybind={props.config.keybindLabel("toggle_tools")}
+        showToolTurns={showToolTurns()}
         selectKeybind={props.config.keybindLabel("select")}
         backKeybind={props.config.keybindLabel("back")}
       />

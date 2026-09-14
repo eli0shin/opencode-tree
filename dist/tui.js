@@ -23,6 +23,7 @@ var treePluginKeybindsSchema = z.object({
   jump_down: keybindValueSchema.optional(),
   collapse: keybindValueSchema.optional(),
   expand: keybindValueSchema.optional(),
+  toggle_tools: keybindValueSchema.optional(),
   select: keybindValueSchema.optional(),
   back: keybindValueSchema.optional()
 }).strict();
@@ -608,6 +609,7 @@ var treeKeybindCommands = {
   jump_down: "tree.jump_down",
   collapse: "tree.collapse",
   expand: "tree.expand",
+  toggle_tools: "tree.toggle_tools",
   select: "tree.select",
   back: "tree.back"
 };
@@ -619,6 +621,7 @@ var treeKeybindDefaults = {
   jump_down: "shift+down,shift+j",
   collapse: "left,h",
   expand: "right,l",
+  toggle_tools: "ctrl+t",
   select: "return",
   back: "escape,ctrl+c"
 };
@@ -831,6 +834,7 @@ function getNextSessionMessageRecord(transcript, messageId) {
 // src/lib/tree/components/tree-route-content.tsx
 import { createComponent as _$createComponent2 } from "@opentui/solid";
 import { effect as _$effect2 } from "@opentui/solid";
+import { memo as _$memo } from "@opentui/solid";
 import { createTextNode as _$createTextNode } from "@opentui/solid";
 import { insertNode as _$insertNode2 } from "@opentui/solid";
 import { insert as _$insert2 } from "@opentui/solid";
@@ -1182,10 +1186,11 @@ function TreeRouteHelpPanel(props) {
   const moveDownKeybind = formatTreeHelpKeybind(props.moveDownKeybind);
   const collapseKeybind = formatTreeHelpKeybind(props.collapseKeybind);
   const expandKeybind = formatTreeHelpKeybind(props.expandKeybind);
+  const toggleToolsKeybind = formatTreeHelpKeybind(props.toggleToolsKeybind);
   const selectKeybind = formatTreeHelpKeybind(props.selectKeybind);
   const backKeybind = formatTreeHelpKeybind(props.backKeybind);
   return (() => {
-    var _el$ = _$createElement2("box"), _el$2 = _$createElement2("text"), _el$3 = _$createElement2("span"), _el$4 = _$createTextNode(`/`), _el$5 = _$createTextNode(` move \u2022 `), _el$8 = _$createElement2("span"), _el$9 = _$createTextNode(`/`), _el$0 = _$createTextNode(` collapse \u2022 `), _el$10 = _$createElement2("span"), _el$11 = _$createTextNode(` branch \u2022 `), _el$13 = _$createElement2("span"), _el$14 = _$createTextNode(` back`);
+    var _el$ = _$createElement2("box"), _el$2 = _$createElement2("text"), _el$3 = _$createElement2("span"), _el$4 = _$createTextNode(`/`), _el$5 = _$createTextNode(` move \u2022 `), _el$8 = _$createElement2("span"), _el$9 = _$createTextNode(`/`), _el$0 = _$createTextNode(` collapse \u2022 `), _el$10 = _$createElement2("span"), _el$11 = _$createTextNode(` branch \u2022 `), _el$13 = _$createElement2("span"), _el$14 = _$createTextNode(` `), _el$15 = _$createTextNode(` \u2022 `), _el$17 = _$createElement2("span"), _el$18 = _$createTextNode(` back`);
     _$insertNode2(_el$, _el$2);
     _$setProp2(_el$, "flexDirection", "row");
     _$setProp2(_el$, "gap", 1);
@@ -1201,6 +1206,9 @@ function TreeRouteHelpPanel(props) {
     _$insertNode2(_el$2, _el$11);
     _$insertNode2(_el$2, _el$13);
     _$insertNode2(_el$2, _el$14);
+    _$insertNode2(_el$2, _el$15);
+    _$insertNode2(_el$2, _el$17);
+    _$insertNode2(_el$2, _el$18);
     _$insertNode2(_el$3, _el$4);
     _$insert2(_el$3, moveUpKeybind, _el$4);
     _$insert2(_el$3, moveDownKeybind, null);
@@ -1208,7 +1216,9 @@ function TreeRouteHelpPanel(props) {
     _$insert2(_el$8, collapseKeybind, _el$9);
     _$insert2(_el$8, expandKeybind, null);
     _$insert2(_el$10, selectKeybind);
-    _$insert2(_el$13, backKeybind);
+    _$insert2(_el$13, toggleToolsKeybind);
+    _$insert2(_el$2, () => props.showToolTurns ? "hide tools" : "show tools", _el$15);
+    _$insert2(_el$17, backKeybind);
     _$effect2((_p$) => {
       var _v$ = props.palette.panelBackground, _v$2 = props.busy ? props.palette.branchingText : props.palette.helpText, _v$3 = {
         fg: props.palette.helpKey
@@ -1218,6 +1228,8 @@ function TreeRouteHelpPanel(props) {
         fg: props.palette.helpKey
       }, _v$6 = {
         fg: props.palette.helpKey
+      }, _v$7 = {
+        fg: props.palette.helpKey
       };
       _v$ !== _p$.e && (_p$.e = _$setProp2(_el$, "backgroundColor", _v$, _p$.e));
       _v$2 !== _p$.t && (_p$.t = _$setProp2(_el$2, "fg", _v$2, _p$.t));
@@ -1225,6 +1237,7 @@ function TreeRouteHelpPanel(props) {
       _v$4 !== _p$.o && (_p$.o = _$setProp2(_el$8, "style", _v$4, _p$.o));
       _v$5 !== _p$.i && (_p$.i = _$setProp2(_el$10, "style", _v$5, _p$.i));
       _v$6 !== _p$.n && (_p$.n = _$setProp2(_el$13, "style", _v$6, _p$.n));
+      _v$7 !== _p$.s && (_p$.s = _$setProp2(_el$17, "style", _v$7, _p$.s));
       return _p$;
     }, {
       e: undefined,
@@ -1232,7 +1245,8 @@ function TreeRouteHelpPanel(props) {
       a: undefined,
       o: undefined,
       i: undefined,
-      n: undefined
+      n: undefined,
+      s: undefined
     });
     return _el$;
   })();
@@ -1269,23 +1283,23 @@ function TreeRouteStatusPanel(props) {
     }
   };
   return (() => {
-    var _el$15 = _$createElement2("box"), _el$16 = _$createElement2("text");
-    _$insertNode2(_el$15, _el$16);
-    _$setProp2(_el$15, "paddingLeft", 1);
-    _$setProp2(_el$15, "paddingRight", 1);
-    _$setProp2(_el$15, "paddingTop", 0);
-    _$setProp2(_el$15, "paddingBottom", 1);
-    _$insert2(_el$16, () => props.message);
+    var _el$19 = _$createElement2("box"), _el$20 = _$createElement2("text");
+    _$insertNode2(_el$19, _el$20);
+    _$setProp2(_el$19, "paddingLeft", 1);
+    _$setProp2(_el$19, "paddingRight", 1);
+    _$setProp2(_el$19, "paddingTop", 0);
+    _$setProp2(_el$19, "paddingBottom", 1);
+    _$insert2(_el$20, () => props.message);
     _$effect2((_p$) => {
-      var _v$7 = props.palette.panelBackground, _v$8 = foreground();
-      _v$7 !== _p$.e && (_p$.e = _$setProp2(_el$15, "backgroundColor", _v$7, _p$.e));
-      _v$8 !== _p$.t && (_p$.t = _$setProp2(_el$16, "fg", _v$8, _p$.t));
+      var _v$8 = props.palette.panelBackground, _v$9 = foreground();
+      _v$8 !== _p$.e && (_p$.e = _$setProp2(_el$19, "backgroundColor", _v$8, _p$.e));
+      _v$9 !== _p$.t && (_p$.t = _$setProp2(_el$20, "fg", _v$9, _p$.t));
       return _p$;
     }, {
       e: undefined,
       t: undefined
     });
-    return _el$15;
+    return _el$19;
   })();
 }
 function TreeRouteBody(props) {
@@ -1305,11 +1319,11 @@ function TreeRouteBody(props) {
         return state.message;
       }
     }) : (() => {
-      var _el$17 = _$createElement2("box");
-      _$setProp2(_el$17, "flexDirection", "column");
-      _$setProp2(_el$17, "flexGrow", 1);
-      _$setProp2(_el$17, "minHeight", 0);
-      _$insert2(_el$17, _$createComponent2(TreeView, {
+      var _el$21 = _$createElement2("box");
+      _$setProp2(_el$21, "flexDirection", "column");
+      _$setProp2(_el$21, "flexGrow", 1);
+      _$setProp2(_el$21, "minHeight", 0);
+      _$insert2(_el$21, _$createComponent2(TreeView, {
         get rows() {
           return state.rows;
         },
@@ -1327,8 +1341,8 @@ function TreeRouteBody(props) {
           return props.onFocusChange;
         }
       }));
-      _$effect2((_$p) => _$setProp2(_el$17, "backgroundColor", props.palette.panelBackground, _$p));
-      return _el$17;
+      _$effect2((_$p) => _$setProp2(_el$21, "backgroundColor", props.palette.panelBackground, _$p));
+      return _el$21;
     })()
   });
 }
@@ -1429,20 +1443,25 @@ function flattenSession(rows, rowIndexById, lastRowIndexBySessionId, session, cu
   }
   for (const message of session.messages) {
     const messageRowId = getMessageRowId(message.sessionId, message.messageId);
-    pushRow(rows, rowIndexById, lastRowIndexBySessionId, {
-      kind: "message",
-      id: messageRowId,
-      depth: depth + 1,
-      sessionId: message.sessionId,
-      currentSessionId,
-      messageId: message.messageId,
-      role: message.record.info.role,
-      preview: options.messagePreviewByRowId?.get(messageRowId) ?? getMessagePreview(message)
-    });
+    if (options.showToolTurns || !isToolTurn(message)) {
+      pushRow(rows, rowIndexById, lastRowIndexBySessionId, {
+        kind: "message",
+        id: messageRowId,
+        depth: depth + 1,
+        sessionId: message.sessionId,
+        currentSessionId,
+        messageId: message.messageId,
+        role: message.record.info.role,
+        preview: options.messagePreviewByRowId?.get(messageRowId) ?? getMessagePreview(message)
+      });
+    }
     for (const childSession of message.childSessions) {
       flattenSession(rows, rowIndexById, lastRowIndexBySessionId, childSession, currentSessionId, depth + 2, options);
     }
   }
+}
+function isToolTurn(message) {
+  return message.record.info.role === "assistant" && message.record.parts.some((part) => part.type === "tool");
 }
 function pushRow(rows, rowIndexById, lastRowIndexBySessionId, row) {
   rows.push(row);
@@ -2598,6 +2617,7 @@ function createTreeRouteBranchController(input) {
 function TreeRoute(props) {
   const [selectedRowId, setSelectedRowId] = createSignal4();
   const [collapsedSessionIds, setCollapsedSessionIds] = createSignal4(new Set);
+  const [showToolTurns, setShowToolTurns] = createSignal4(false);
   const [treeFocused, setTreeFocused] = createSignal4(false);
   const [terminalWidth, setTerminalWidth] = createSignal4(props.renderer.width);
   const handleResize = () => setTerminalWidth(props.renderer.width);
@@ -2662,7 +2682,8 @@ function TreeRoute(props) {
     if (!nextVisibleTree)
       return;
     return buildFlatRows(nextVisibleTree.root, props.sessionID ?? "", {
-      messagePreviewByRowId: treeIndex?.messagePreviewByRowId
+      messagePreviewByRowId: treeIndex?.messagePreviewByRowId,
+      showToolTurns: showToolTurns()
     });
   });
   const rows = createMemo4(() => flatTree()?.rows ?? []);
@@ -2751,6 +2772,13 @@ function TreeRoute(props) {
       enabled: canUseTreeRows,
       run: expandSelectedSession
     }, {
+      id: treeKeybindCommands.toggle_tools,
+      bind: props.config.keybinds.toggle_tools,
+      enabled: canUseTreeRows,
+      run: () => {
+        setShowToolTurns((current) => !current);
+      }
+    }, {
       id: treeKeybindCommands.select,
       bind: props.config.keybinds.select,
       enabled: canUseTreeRows,
@@ -2786,6 +2814,12 @@ function TreeRoute(props) {
       },
       get expandKeybind() {
         return props.config.keybindLabel("expand");
+      },
+      get toggleToolsKeybind() {
+        return props.config.keybindLabel("toggle_tools");
+      },
+      get showToolTurns() {
+        return showToolTurns();
       },
       get selectKeybind() {
         return props.config.keybindLabel("select");

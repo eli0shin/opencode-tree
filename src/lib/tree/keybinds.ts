@@ -7,6 +7,7 @@ export const treeKeybindCommands = {
   jump_down: "tree.jump_down",
   collapse: "tree.collapse",
   expand: "tree.expand",
+  toggle_tools: "tree.toggle_tools",
   select: "tree.select",
   back: "tree.back",
 } as const;
@@ -23,6 +24,7 @@ const treeKeybindDefaults: TreeKeybinds = {
   jump_down: "shift+down,shift+j",
   collapse: "left,h",
   expand: "right,l",
+  toggle_tools: "ctrl+t",
   select: "return",
   back: "escape,ctrl+c",
 };

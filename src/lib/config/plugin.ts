@@ -17,6 +17,7 @@ const treePluginKeybindsSchema = z
     jump_down: keybindValueSchema.optional(),
     collapse: keybindValueSchema.optional(),
     expand: keybindValueSchema.optional(),
+    toggle_tools: keybindValueSchema.optional(),
     select: keybindValueSchema.optional(),
     back: keybindValueSchema.optional(),
   })

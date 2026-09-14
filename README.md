@@ -30,6 +30,8 @@ OpenCode installs the package and loads its precompiled TUI code. No manual clon
 
 By default, tree state is saved [globally](#global-storage).
 
+Tool turns are hidden when `/tree` opens. Press `Ctrl+T` to show or hide them.
+
 To save it in the current project’s `.opencode` folder instead, set `storageScope` to `local`:
 
 ```json
@@ -62,6 +64,7 @@ All options are optional. This example shows the default values:
           "jump_down": "shift+down,shift+j",
           "collapse": "left,h",
           "expand": "right,l",
+          "toggle_tools": "ctrl+t",
           "select": "return",
           "back": "escape,ctrl+c"
         }

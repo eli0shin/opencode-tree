@@ -36,6 +36,8 @@ export type TreeRouteHelpPanelProps = {
   readonly moveDownKeybind: string;
   readonly collapseKeybind: string;
   readonly expandKeybind: string;
+  readonly toggleToolsKeybind: string;
+  readonly showToolTurns: boolean;
   readonly selectKeybind: string;
   readonly backKeybind: string;
 };
@@ -125,6 +127,7 @@ export function TreeRouteHelpPanel(props: TreeRouteHelpPanelProps) {
   const moveDownKeybind = formatTreeHelpKeybind(props.moveDownKeybind);
   const collapseKeybind = formatTreeHelpKeybind(props.collapseKeybind);
   const expandKeybind = formatTreeHelpKeybind(props.expandKeybind);
+  const toggleToolsKeybind = formatTreeHelpKeybind(props.toggleToolsKeybind);
   const selectKeybind = formatTreeHelpKeybind(props.selectKeybind);
   const backKeybind = formatTreeHelpKeybind(props.backKeybind);
 
@@ -147,6 +150,8 @@ export function TreeRouteHelpPanel(props: TreeRouteHelpPanelProps) {
           {collapseKeybind}/{expandKeybind}
         </span>{" "}
         collapse • <span style={{ fg: props.palette.helpKey }}>{selectKeybind}</span> branch •{" "}
+        <span style={{ fg: props.palette.helpKey }}>{toggleToolsKeybind}</span>{" "}
+        {props.showToolTurns ? "hide tools" : "show tools"} •{" "}
         <span style={{ fg: props.palette.helpKey }}>{backKeybind}</span> back
       </text>
     </box>

@@ -532,13 +532,82 @@ describe("projectSessionTree", () => {
       }),
     };
 
-    const rows = buildRows(snapshot, transcripts, "sess_root");
+    const rows = buildFlatRows(
+      buildVisibleTree(projectSessionTree(snapshot, transcripts), {
+        collapsedSessionIds: new Set(),
+      }).root,
+      "sess_root",
+      { showToolTurns: true },
+    ).rows;
     const toolRow = rows[1];
 
     expect(toolRow).toMatchObject({
       kind: "message",
       preview: "tool:bash command=rg -n session.messages src",
     });
+  });
+
+  test("keeps child sessions visible when their tool turn anchor is hidden", () => {
+    const snapshot: TreeSnapshot = {
+      version: 1,
+      treeId: "tree_01",
+      rootSessionId: "sess_root",
+      sessions: {
+        sess_root: {
+          sessionId: "sess_root",
+          parentSessionId: null,
+          anchorMessageId: null,
+          children: ["sess_child"],
+        },
+        sess_child: {
+          sessionId: "sess_child",
+          parentSessionId: "sess_root",
+          anchorMessageId: "msg_tool",
+          children: [],
+        },
+      },
+    };
+    const transcripts: SessionTranscriptMap = {
+      sess_root: createSessionTranscript({
+        sessionId: "sess_root",
+        status: "available",
+        messages: [
+          {
+            info: createUserMessage("msg_user", "sess_root", 10),
+            parts: [createTextPart("msg_user", "sess_root", "inspect")],
+          },
+          {
+            info: createAssistantMessage("msg_tool", "sess_root", 20, "msg_user"),
+            parts: [createToolPart("msg_tool", "sess_root", "read", { path: "src" })],
+          },
+        ],
+      }),
+      sess_child: createSessionTranscript({
+        sessionId: "sess_child",
+        status: "available",
+        messages: [
+          {
+            info: createUserMessage("msg_clone_user", "sess_child", 10),
+            parts: [createTextPart("msg_clone_user", "sess_child", "inspect")],
+          },
+          {
+            info: createAssistantMessage("msg_clone_tool", "sess_child", 20, "msg_clone_user"),
+            parts: [createToolPart("msg_clone_tool", "sess_child", "read", { path: "src" })],
+          },
+          {
+            info: createUserMessage("msg_branch", "sess_child", 30),
+            parts: [createTextPart("msg_branch", "sess_child", "take another path")],
+          },
+        ],
+      }),
+    };
+
+    expect(buildRows(snapshot, transcripts, "sess_root").map((row) => row.id)).toEqual([
+      "session:sess_root",
+      "message:sess_root:msg_user",
+      "session:sess_child",
+      "message:sess_child:msg_branch",
+    ]);
   });
 
   test("uses reasoning preview when assistant message has no text or tool", () => {

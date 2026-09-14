@@ -41,6 +41,7 @@ export type FlatTreeRows = {
 
 export type BuildFlatRowsOptions = {
   readonly messagePreviewByRowId?: ReadonlyMap<MessageRowId, string>;
+  readonly showToolTurns?: boolean;
 };
 
 export function buildFlatRows(
@@ -96,16 +97,18 @@ function flattenSession(
 
   for (const message of session.messages) {
     const messageRowId = getMessageRowId(message.sessionId, message.messageId);
-    pushRow(rows, rowIndexById, lastRowIndexBySessionId, {
-      kind: "message",
-      id: messageRowId,
-      depth: depth + 1,
-      sessionId: message.sessionId,
-      currentSessionId,
-      messageId: message.messageId,
-      role: message.record.info.role,
-      preview: options.messagePreviewByRowId?.get(messageRowId) ?? getMessagePreview(message),
-    });
+    if (options.showToolTurns || !isToolTurn(message)) {
+      pushRow(rows, rowIndexById, lastRowIndexBySessionId, {
+        kind: "message",
+        id: messageRowId,
+        depth: depth + 1,
+        sessionId: message.sessionId,
+        currentSessionId,
+        messageId: message.messageId,
+        role: message.record.info.role,
+        preview: options.messagePreviewByRowId?.get(messageRowId) ?? getMessagePreview(message),
+      });
+    }
 
     for (const childSession of message.childSessions) {
       flattenSession(
@@ -119,6 +122,13 @@ function flattenSession(
       );
     }
   }
+}
+
+function isToolTurn(message: VisibleMessageNode): boolean {
+  return (
+    message.record.info.role === "assistant" &&
+    message.record.parts.some((part) => part.type === "tool")
+  );
 }
 
 function pushRow(
