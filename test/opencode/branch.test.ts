@@ -98,7 +98,7 @@ describe("executeTreeBranchAction", () => {
 
     expect(client.forkSession).toHaveBeenCalledWith({
       sessionID: "sess_root",
-      boundary: { type: "before", messageID: "msg_user" },
+      before: "msg_user",
     });
     expect(writeSnapshot).toHaveBeenCalledWith(storageRoot, {
       version: 1,
@@ -263,7 +263,7 @@ describe("executeTreeBranchAction", () => {
     );
     expect(client.forkSession).toHaveBeenCalledWith({
       sessionID: "sess_root",
-      boundary: { type: "before", messageID: "msg_user" },
+      before: "msg_user",
     });
     expect(client.syntheticSession).toHaveBeenCalledWith({
       sessionID: "sess_child",

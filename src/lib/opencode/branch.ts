@@ -179,7 +179,7 @@ async function forkTreeSession(
 ): Promise<string> {
   const forked = await client.session.fork({
     sessionID: plan.sessionId,
-    boundary: { type: "before", messageID: plan.forkMessageId },
+    before: plan.forkMessageId,
   });
 
   const forkedSessionId = forked.id;

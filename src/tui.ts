@@ -35,7 +35,6 @@ export default Plugin.define({
               palette: true,
               slash: { name: "tree" },
               suggested: () => isSessionRoute(context.ui.router.current()),
-              enabled: () => isSessionRoute(context.ui.router.current()),
               run: () => {
                 context.ui.router.navigate({
                   type: "plugin",

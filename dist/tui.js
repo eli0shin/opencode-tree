@@ -2012,7 +2012,7 @@ async function completeTreeForkTransition(input, dependencies) {
 async function forkTreeSession(plan, projectRoot, client) {
   const forked = await client.session.fork({
     sessionID: plan.sessionId,
-    boundary: { type: "before", messageID: plan.forkMessageId }
+    before: plan.forkMessageId
   });
   const forkedSessionId = forked.id;
   if (!forkedSessionId) {
@@ -3000,7 +3000,6 @@ var tui_default = Plugin.define({
               palette: true,
               slash: { name: "tree" },
               suggested: () => isSessionRoute(context.ui.router.current()),
-              enabled: () => isSessionRoute(context.ui.router.current()),
               run: () => {
                 context.ui.router.navigate({
                   type: "plugin",
