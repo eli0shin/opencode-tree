@@ -22,7 +22,9 @@ Add the GitHub reference to `~/.config/opencode/opencode.json`:
 }
 ```
 
-OpenCode installs the package and loads its precompiled TUI code. No manual clone or compile step is needed.
+OpenCode installs the package and loads its TypeScript source. No manual clone or compile step is needed.
+
+The TUI entrypoint transforms this package's Solid TSX in memory at load time. Generated `dist/` files are not shipped or committed.
 
 ## Configuration
 
