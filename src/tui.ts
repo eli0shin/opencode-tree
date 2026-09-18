@@ -1,37 +1,107 @@
-import { plugin } from "bun";
-import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { Plugin } from "@opencode/plugin/tui";
+import { createComponent } from "solid-js";
+import { parseTreePluginOptions } from "./lib/config/plugin";
+import { createSnapshotSessionTranscriptsLoader } from "./lib/opencode/messages";
+import { createTreeSessionNavigator } from "./lib/opencode/navigation";
+import { resolveStorageRoot } from "./lib/storage";
+import { createTreeKeybinds, formatTreeKeybindLabel } from "./lib/tree/keybinds";
+import { TreeRoute } from "./lib/tree/route";
+import {
+  getTreeRouteParamsForNavigation,
+  isSessionRoute,
+  parseTreeRouteParams,
+} from "./lib/tree/route-params";
+import { createTreeTheme } from "./lib/tree/theme";
 
-const require = createRequire(import.meta.url);
-const sourceDirectory = fileURLToPath(new URL("./", import.meta.url));
-const sourcePattern = sourceDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const routeName = "tree";
 
-// OpenCode's Solid transform skips node_modules. Transform only this package's
-// TSX, before importing the UI, so Git installs retain Solid's reactive getters.
-plugin({
-  name: "opencode-tree-solid",
-  setup(build) {
-    build.onLoad({ filter: new RegExp(`^${sourcePattern}.*\\.tsx(?:[?#].*)?$`) }, async (args) => {
-      const filename = args.path.replace(/[?#].*$/, "");
-      const { transformAsync } = await import("@babel/core");
-      const result = await transformAsync(await Bun.file(filename).text(), {
-        filename,
-        configFile: false,
-        babelrc: false,
-        presets: [
-          [
-            require.resolve("babel-preset-solid"),
-            { moduleName: "@opentui/solid", generate: "universal" },
+export default Plugin.define({
+  id: "opencode.tree",
+  setup(context) {
+    const pluginOptions = parseTreePluginOptions(context.options);
+    const treeKeybinds = createTreeKeybinds(pluginOptions.keybinds);
+    const navigation = createTreeSessionNavigator(context);
+
+    const unregisterCommands = context.ui.slot({
+      append: "app",
+      render: () => {
+        context.keymap.layer(() => ({
+          mode: "global",
+          commands: [
+            {
+              id: "tree.open",
+              title: "Tree",
+              group: "Plugin",
+              palette: true,
+              slash: { name: "tree" },
+              suggested: () => isSessionRoute(context.ui.router.current()),
+              run: () => {
+                context.ui.router.navigate({
+                  type: "plugin",
+                  name: routeName,
+                  data: getTreeRouteParamsForNavigation(context.ui.router.current()),
+                });
+                context.ui.dialog.clear();
+              },
+            },
           ],
-          require.resolve("@babel/preset-typescript"),
-        ],
-      });
-      if (!result?.code) throw new Error(`Failed to transform tree component: ${filename}`);
-      return { contents: result.code, loader: "js" };
+        }));
+        return null;
+      },
     });
+
+    const unregisterRoute = context.ui.router.register({
+      name: routeName,
+      render: ({ data }) => {
+        const routeParams = parseTreeRouteParams(data);
+        const projectRoot = resolveTreeProjectRoot(context, routeParams.sessionID);
+        const storageRoot = resolveStorageRoot({
+          projectRoot,
+          stateRoot: resolveOpenCodeStateRoot(),
+          storageScope: pluginOptions.storageScope,
+        });
+
+        return createComponent(TreeRoute, {
+          client: context.client,
+          config: {
+            storageRoot,
+            keybinds: treeKeybinds,
+            keybindLabel: (name) => formatTreeKeybindLabel(treeKeybinds, name),
+            linesPerJump: pluginOptions.lines_per_jump,
+          },
+          keymap: context.keymap,
+          renderer: context.renderer,
+          ui: context.ui,
+          projectRoot,
+          theme: () => createTreeTheme(context.theme),
+          loadSessionTranscripts: createSnapshotSessionTranscriptsLoader(context.client),
+          navigateToSession: navigation.navigateToSession,
+          ...routeParams,
+        });
+      },
+    });
+
+    return () => {
+      navigation.dispose();
+      unregisterCommands();
+      unregisterRoute();
+    };
   },
 });
 
-const { default: treePlugin, resolveTreeProjectRoot } = await import("./tui-plugin");
-export { resolveTreeProjectRoot };
-export default treePlugin;
+export function resolveTreeProjectRoot(
+  context: Pick<Plugin.Context, "data" | "location">,
+  sessionID?: string,
+): string {
+  return (
+    (sessionID ? context.data.session.get(sessionID)?.location.directory : undefined) ??
+    context.location?.directory ??
+    context.data.location.default().directory
+  );
+}
+
+function resolveOpenCodeStateRoot(): string {
+  return join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local", "state"), "opencode");
+}
