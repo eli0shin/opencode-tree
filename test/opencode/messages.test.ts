@@ -382,6 +382,14 @@ describe("createSessionTranscript", () => {
 
     expect(getMessageTextReplay(parts)).toBe("hello there");
   });
+
+  test("preserves whitespace in prompt replay", () => {
+    expect(
+      getMessageTextReplay([
+        createTextPart("msg_01", "sess_root", "  first line\n\nsecond line\n"),
+      ]),
+    ).toBe("  first line\n\nsecond line\n");
+  });
 });
 
 describe("serializeSessionMessageRecordsForSummary", () => {

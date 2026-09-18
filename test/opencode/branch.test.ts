@@ -199,7 +199,7 @@ describe("executeTreeBranchAction", () => {
     expect(navigateToSession).not.toHaveBeenCalled();
   });
 
-  test("forks, persists tree state, and navigates without replaying prompt text", async () => {
+  test("forks, persists tree state, and restores user text without submitting it", async () => {
     const client = createClient();
     const navigateToSession = mock(() => {
       expect(client.switchModel).toHaveBeenCalledWith({
@@ -224,6 +224,7 @@ describe("executeTreeBranchAction", () => {
             sessionId: "sess_root",
             anchorMessageId: "msg_user",
             forkMessageId: "msg_user",
+            promptText: "Review these changes.\nKeep the tests.",
           },
         },
         projectRoot: "/repo",
@@ -278,7 +279,10 @@ describe("executeTreeBranchAction", () => {
         sess_child: "tree_01",
       },
     });
-    expect(navigateToSession).toHaveBeenCalledWith("sess_child");
+    expect(navigateToSession).toHaveBeenCalledWith(
+      "sess_child",
+      "Review these changes.\nKeep the tests.",
+    );
     expect(client.appendPrompt).not.toHaveBeenCalled();
   });
 
@@ -372,7 +376,7 @@ describe("executeTreeBranchAction", () => {
     });
   });
 
-  test("generates summary and injects it without replaying user text", async () => {
+  test("generates summary and restores user text without submitting it", async () => {
     const client = createClient();
     client.syntheticSession.mockImplementation(async () => {
       expect(client.switchModel).toHaveBeenCalledWith({
@@ -398,6 +402,7 @@ describe("executeTreeBranchAction", () => {
           sessionId: "sess_root",
           anchorMessageId: "msg_user",
           forkMessageId: "msg_user",
+          promptText: "fix this",
         },
         projectRoot: "/repo",
         storageRoot,
@@ -443,7 +448,7 @@ describe("executeTreeBranchAction", () => {
     });
     expect(writeSnapshot).toHaveBeenCalled();
     expect(writeRegistry).toHaveBeenCalled();
-    expect(navigateToSession).toHaveBeenCalledWith("sess_child");
+    expect(navigateToSession).toHaveBeenCalledWith("sess_child", "fix this");
     expect(client.appendPrompt).not.toHaveBeenCalled();
   });
 

@@ -4,6 +4,7 @@ import { Plugin } from "@opencode/plugin/tui";
 import { createComponent } from "solid-js";
 import { parseTreePluginOptions } from "./lib/config/plugin";
 import { createSnapshotSessionTranscriptsLoader } from "./lib/opencode/messages";
+import { createTreeSessionNavigator } from "./lib/opencode/navigation";
 import { resolveStorageRoot } from "./lib/storage";
 import { createTreeKeybinds, formatTreeKeybindLabel } from "./lib/tree/keybinds";
 import { TreeRoute } from "./lib/tree/route";
@@ -21,6 +22,7 @@ export default Plugin.define({
   setup(context) {
     const pluginOptions = parseTreePluginOptions(context.options);
     const treeKeybinds = createTreeKeybinds(pluginOptions.keybinds);
+    const navigation = createTreeSessionNavigator(context);
 
     const unregisterCommands = context.ui.slot({
       append: "app",
@@ -75,15 +77,14 @@ export default Plugin.define({
           projectRoot,
           theme: () => createTreeTheme(context.theme),
           loadSessionTranscripts: createSnapshotSessionTranscriptsLoader(context.client),
-          navigateToSession: (sessionID: string) => {
-            context.ui.router.navigate({ type: "session", sessionID });
-          },
+          navigateToSession: navigation.navigateToSession,
           ...routeParams,
         });
       },
     });
 
     return () => {
+      navigation.dispose();
       unregisterCommands();
       unregisterRoute();
     };

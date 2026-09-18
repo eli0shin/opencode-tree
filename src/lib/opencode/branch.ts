@@ -35,7 +35,7 @@ export type ExecuteTreeBranchActionDependencies = {
     message: string;
     variant: "info" | "success" | "warning" | "error";
   }) => void;
-  readonly navigateToSession: (sessionId: string) => void | Promise<void>;
+  readonly navigateToSession: (sessionId: string, promptText?: string) => void | Promise<void>;
   readonly generateSummary?: typeof generateTreeBranchSummary;
   readonly storage?: TreeBranchStorage;
 };
@@ -54,6 +54,7 @@ export type TreeForkExecutionResult = {
 
 export type CompleteTreeForkTransitionInput = {
   readonly forkedSessionId: string;
+  readonly promptText?: string;
 };
 
 export type ExecuteTreeSummaryForkInput = {
@@ -109,6 +110,7 @@ export async function executeTreeBranchAction(
   await completeTreeForkTransition(
     {
       forkedSessionId: forked.forkedSessionId,
+      promptText: input.action.plan.promptText,
     },
     dependencies,
   );
@@ -165,6 +167,7 @@ export async function executeTreeSummaryFork(
   await completeTreeForkTransition(
     {
       forkedSessionId,
+      promptText: input.plan.promptText,
     },
     dependencies,
   );
@@ -174,7 +177,7 @@ export async function completeTreeForkTransition(
   input: CompleteTreeForkTransitionInput,
   dependencies: Pick<ExecuteTreeBranchActionDependencies, "navigateToSession">,
 ): Promise<void> {
-  await dependencies.navigateToSession(input.forkedSessionId);
+  await dependencies.navigateToSession(input.forkedSessionId, input.promptText);
 }
 
 async function forkTreeSession(

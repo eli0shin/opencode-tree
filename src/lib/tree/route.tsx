@@ -63,7 +63,7 @@ export type TreeRouteProps = {
   readonly sessionID?: string;
   readonly theme: () => TreeTheme;
   readonly loadSessionTranscripts: LoadSnapshotSessionTranscripts;
-  readonly navigateToSession: (sessionId: string) => void | Promise<void>;
+  readonly navigateToSession: (sessionId: string, promptText?: string) => void | Promise<void>;
 };
 
 type ProjectedTreeIndex = {

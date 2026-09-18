@@ -52,7 +52,7 @@ export type TreeRouteBranchControllerInput = {
   readonly keymap: Plugin.Context["keymap"];
   readonly ui: Pick<Plugin.Context["ui"], "dialog" | "toast"> & TreeBranchSummaryDialogUI;
   readonly theme: Accessor<TreeTheme>;
-  readonly navigateToSession: (sessionId: string) => void | Promise<void>;
+  readonly navigateToSession: (sessionId: string, promptText?: string) => void | Promise<void>;
   readonly bootstrap: Accessor<TreeBootstrapResult | undefined>;
   readonly projectedTreeData: Accessor<
     | {

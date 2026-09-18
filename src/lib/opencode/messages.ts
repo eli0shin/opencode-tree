@@ -247,7 +247,11 @@ function toAssistantMessageRecord(message: SessionMessageAssistant): SessionMess
 }
 
 export function getMessageTextReplay(parts: readonly Part[]): string | undefined {
-  const text = collectMessageText(parts);
+  const text = parts
+    .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
+    .filter((part) => !part.synthetic && !part.ignored)
+    .map((part) => part.text)
+    .join("");
 
   return text?.length ? text : undefined;
 }
@@ -335,14 +339,7 @@ function buildAssistantMessageBlocks(input: {
 }
 
 function collectMessageText(parts: readonly Part[]): string | undefined {
-  const text = parts
-    .filter((part): part is Extract<Part, { type: "text" }> => part.type === "text")
-    .filter((part) => !part.synthetic && !part.ignored)
-    .map((part) => part.text)
-    .join("")
-    .trim();
-
-  return text.length > 0 ? text : undefined;
+  return getMessageTextReplay(parts)?.trim() || undefined;
 }
 
 function collectReasoningText(parts: readonly Part[]): string | undefined {

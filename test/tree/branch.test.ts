@@ -135,6 +135,7 @@ describe("planTreeBranchAction", () => {
         sessionId: "sess_root",
         anchorMessageId: "msg_user",
         forkMessageId: "msg_user",
+        promptText: "hello branch",
       },
     });
   });

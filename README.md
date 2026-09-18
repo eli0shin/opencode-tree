@@ -34,6 +34,8 @@ Tool turns are hidden when `/tree` opens. Press `Ctrl+T` to show or hide them.
 
 Tree navigation keeps the current session's model and variant. Opening an existing session replaces its model selection with the current selection. New branches use the current selection, not the older source session's selection.
 
+Selecting a user message branches before that message and adds its text to the prompt box for editing. The plugin does not submit the restored text. Selecting an assistant message or a session does not add prompt text.
+
 To save it in the current project’s `.opencode` folder instead, set `storageScope` to `local`:
 
 ```json

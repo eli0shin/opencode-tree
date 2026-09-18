@@ -176,6 +176,10 @@ function toAssistantMessageRecord(message) {
   });
   return { info: { ...message, role: "assistant" }, parts };
 }
+function getMessageTextReplay(parts) {
+  const text = parts.filter((part) => part.type === "text").filter((part) => !part.synthetic && !part.ignored).map((part) => part.text).join("");
+  return text?.length ? text : undefined;
+}
 function serializeSessionMessageRecordsForSummary(messages) {
   return messages.map(serializeSessionMessageRecordForSummary).filter((blocks) => blocks.length > 0).map((blocks) => blocks.join(`
 `)).join(`
@@ -230,8 +234,7 @@ function buildAssistantMessageBlocks(input) {
   return blocks;
 }
 function collectMessageText(parts) {
-  const text = parts.filter((part) => part.type === "text").filter((part) => !part.synthetic && !part.ignored).map((part) => part.text).join("").trim();
-  return text.length > 0 ? text : undefined;
+  return getMessageTextReplay(parts)?.trim() || undefined;
 }
 function collectReasoningText(parts) {
   const reasoning = parts.filter((part) => part.type === "reasoning").map((part) => part.text.trim()).filter((text) => text.length > 0).join(`
@@ -288,6 +291,48 @@ function getFilePartLabel(part) {
 }
 function isNotFoundError(error) {
   return typeof error === "object" && error !== null && (("name" in error) && error.name === "NotFoundError" || ("_tag" in error) && error._tag === "SessionNotFoundError");
+}
+
+// src/lib/opencode/navigation.ts
+import { CliRenderEvents } from "@opentui/core";
+function createTreeSessionNavigator(context) {
+  let cancelReplay = () => {};
+  return {
+    navigateToSession(sessionID, promptText) {
+      cancelReplay();
+      context.ui.dialog.clear();
+      if (promptText) {
+        let active = true;
+        const restore = () => {
+          if (!active)
+            return;
+          const route = context.ui.router.current();
+          if (route.type !== "session" || route.sessionID !== sessionID) {
+            cancel();
+            return;
+          }
+          const editor = context.renderer.currentFocusedEditor;
+          if (!editor || editor.isDestroyed)
+            return;
+          cancel();
+          editor.gotoBufferEnd();
+          editor.insertText(promptText);
+        };
+        const onFocus = () => queueMicrotask(restore);
+        const cancel = () => {
+          active = false;
+          context.renderer.off(CliRenderEvents.FOCUSED_EDITOR, onFocus);
+        };
+        cancelReplay = cancel;
+        context.renderer.on(CliRenderEvents.FOCUSED_EDITOR, onFocus);
+        queueMicrotask(restore);
+      }
+      context.ui.router.navigate({ type: "session", sessionID });
+    },
+    dispose() {
+      cancelReplay();
+    }
+  };
 }
 
 // src/lib/storage/file.ts
@@ -667,7 +712,7 @@ import { insert as _$insert5 } from "@opentui/solid";
 import { createComponent as _$createComponent5 } from "@opentui/solid";
 import { setProp as _$setProp5 } from "@opentui/solid";
 import { createElement as _$createElement5 } from "@opentui/solid";
-import { CliRenderEvents } from "@opentui/core";
+import { CliRenderEvents as CliRenderEvents2 } from "@opentui/core";
 import { createEffect as createEffect4, createMemo as createMemo4, createResource, createSignal as createSignal4, on as on3, onCleanup as onCleanup4, Show as Show4 } from "solid-js";
 
 // src/lib/tree/bootstrap.ts
@@ -767,7 +812,8 @@ function planTreeBranchAction(input) {
     };
   }
   const transcript = input.transcripts[row.sessionId];
-  if (!transcript?.messageById.has(row.messageId)) {
+  const message = transcript?.messageById.get(row.messageId);
+  if (!message) {
     return {
       kind: "show-notice",
       message: `Message ${row.messageId} is unavailable.`,
@@ -780,7 +826,8 @@ function planTreeBranchAction(input) {
       plan: {
         sessionId: row.sessionId,
         anchorMessageId: row.messageId,
-        forkMessageId: row.messageId
+        forkMessageId: row.messageId,
+        promptText: getMessageTextReplay(message.parts)
       }
     };
   }
@@ -1979,7 +2026,8 @@ async function executeTreeBranchAction(input, dependencies) {
     snapshot: input.snapshot
   }, dependencies);
   await completeTreeForkTransition({
-    forkedSessionId: forked.forkedSessionId
+    forkedSessionId: forked.forkedSessionId,
+    promptText: input.action.plan.promptText
   }, dependencies);
 }
 async function executeTreeForkPlan(input, dependencies) {
@@ -2005,11 +2053,12 @@ async function executeTreeSummaryFork(input, dependencies) {
     await cleanupFailedTreeFork(forkedSessionId, input.projectRoot, dependencies.client, error);
   }
   await completeTreeForkTransition({
-    forkedSessionId
+    forkedSessionId,
+    promptText: input.plan.promptText
   }, dependencies);
 }
 async function completeTreeForkTransition(input, dependencies) {
-  await dependencies.navigateToSession(input.forkedSessionId);
+  await dependencies.navigateToSession(input.forkedSessionId, input.promptText);
 }
 async function forkTreeSession(input, client) {
   const forked = await client.session.fork({
@@ -2638,8 +2687,8 @@ function TreeRoute(props) {
   const [treeFocused, setTreeFocused] = createSignal4(false);
   const [terminalWidth, setTerminalWidth] = createSignal4(props.renderer.width);
   const handleResize = () => setTerminalWidth(props.renderer.width);
-  props.renderer.on(CliRenderEvents.RESIZE, handleResize);
-  onCleanup4(() => props.renderer.off(CliRenderEvents.RESIZE, handleResize));
+  props.renderer.on(CliRenderEvents2.RESIZE, handleResize);
+  onCleanup4(() => props.renderer.off(CliRenderEvents2.RESIZE, handleResize));
   const theme = createMemo4(() => props.theme());
   const palette = createMemo4(() => mapTreeTheme(theme()));
   const bootstrapInput = createMemo4(() => {
@@ -3004,6 +3053,7 @@ var tui_default = Plugin.define({
   setup(context) {
     const pluginOptions = parseTreePluginOptions(context.options);
     const treeKeybinds = createTreeKeybinds(pluginOptions.keybinds);
+    const navigation = createTreeSessionNavigator(context);
     const unregisterCommands = context.ui.slot({
       append: "app",
       render: () => {
@@ -3055,14 +3105,13 @@ var tui_default = Plugin.define({
           projectRoot,
           theme: () => createTreeTheme(context.theme),
           loadSessionTranscripts: createSnapshotSessionTranscriptsLoader(context.client),
-          navigateToSession: (sessionID) => {
-            context.ui.router.navigate({ type: "session", sessionID });
-          },
+          navigateToSession: navigation.navigateToSession,
           ...routeParams
         });
       }
     });
     return () => {
+      navigation.dispose();
       unregisterCommands();
       unregisterRoute();
     };
