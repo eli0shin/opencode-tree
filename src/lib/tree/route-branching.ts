@@ -99,6 +99,7 @@ export function createTreeRouteBranchController(
     setBusyState({ kind: "branching" });
     void executeTreeBranchAction(
       {
+        currentSessionId: bootstrapResult.currentSessionId,
         action,
         projectRoot: bootstrapResult.projectRoot,
         storageRoot: bootstrapResult.storageRoot,
@@ -140,6 +141,7 @@ export function createTreeRouteBranchController(
 
       await executeTreeSummaryFork(
         {
+          currentSessionId: bootstrapResult.currentSessionId,
           plan: action.plan,
           projectRoot: bootstrapResult.projectRoot,
           storageRoot: bootstrapResult.storageRoot,

@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import type { SessionInfo } from "@opencode/client";
 import type { OpencodeClient } from "../../src/lib/opencode/messages";
 import { executeTreeBranchAction, executeTreeSummaryFork } from "../../src/lib/opencode/branch";
 import { buildTreeBranchSummaryMessage } from "../../src/lib/opencode/summary";
@@ -18,9 +19,13 @@ const snapshot: TreeSnapshot = {
   },
 };
 
+const selectedModel = { providerID: "openai", id: "gpt-6-astra", variant: "high" };
+
 type BranchTestClient = {
   readonly client: OpencodeClient;
   readonly forkSession: ReturnType<typeof mock>;
+  readonly getSession: ReturnType<typeof mock>;
+  readonly switchModel: ReturnType<typeof mock>;
   readonly promptSession: ReturnType<typeof mock>;
   readonly syntheticSession: ReturnType<typeof mock>;
   readonly deleteSession: ReturnType<typeof mock>;
@@ -30,6 +35,10 @@ type BranchTestClient = {
 
 function createClient() {
   const forkSession = mock(async () => ({ id: "sess_child" }));
+  const getSession = mock(
+    async (): Promise<Pick<SessionInfo, "model">> => ({ model: selectedModel }),
+  );
+  const switchModel = mock(async () => undefined);
   const promptSession = mock(async () => ({ id: "inbox_prompt" }));
   const syntheticSession = mock(async () => ({ id: "inbox_summary" }));
   const deleteSession = mock(async () => undefined);
@@ -39,12 +48,16 @@ function createClient() {
     client: {
       session: {
         fork: forkSession,
+        get: getSession,
+        switchModel,
         prompt: promptSession,
         synthetic: syntheticSession,
         remove: deleteSession,
       },
     } as unknown as OpencodeClient,
     forkSession,
+    getSession,
+    switchModel,
     promptSession,
     syntheticSession,
     deleteSession,
@@ -54,9 +67,146 @@ function createClient() {
 }
 
 describe("executeTreeBranchAction", () => {
-  test("forks, persists tree state, and navigates without replaying prompt text", async () => {
+  test("waits for the full model selection before opening an existing session", async () => {
+    const client = createClient();
+    let destinationModel: typeof selectedModel | undefined;
+    client.switchModel.mockImplementation(async () => {
+      await Promise.resolve();
+      destinationModel = selectedModel;
+    });
+    const navigateToSession = mock(() => {
+      expect(destinationModel).toEqual(selectedModel);
+    });
+
+    await executeTreeBranchAction(
+      {
+        currentSessionId: "sess_active",
+        action: { kind: "switch-session", sessionId: "sess_root" },
+        projectRoot: "/repo",
+        storageRoot: "/unused",
+        snapshot,
+      },
+      { client: client.client, navigateToSession, showToast: client.showToast },
+    );
+
+    expect(navigateToSession).toHaveBeenCalledTimes(1);
+  });
+
+  test("preserves a selection with no variant instead of retaining the target variant", async () => {
+    const client = createClient();
+    const model = { providerID: "other-provider", id: "other-model" };
+    client.getSession.mockImplementation(async () => ({ model }));
+
+    await executeTreeBranchAction(
+      {
+        currentSessionId: "sess_active",
+        action: { kind: "switch-session", sessionId: "sess_root" },
+        projectRoot: "/repo",
+        storageRoot: "/unused",
+        snapshot,
+      },
+      { client: client.client, navigateToSession: () => {}, showToast: client.showToast },
+    );
+
+    expect(client.switchModel).toHaveBeenCalledWith({ sessionID: "sess_root", model });
+  });
+
+  test("returns to the current session without changing its selection", async () => {
     const client = createClient();
     const navigateToSession = mock(() => {});
+
+    await executeTreeBranchAction(
+      {
+        currentSessionId: "sess_root",
+        action: { kind: "switch-session", sessionId: "sess_root" },
+        projectRoot: "/repo",
+        storageRoot: "/unused",
+        snapshot,
+      },
+      { client: client.client, navigateToSession, showToast: client.showToast },
+    );
+
+    expect(navigateToSession).toHaveBeenCalledWith("sess_root");
+    expect(client.getSession).not.toHaveBeenCalled();
+    expect(client.switchModel).not.toHaveBeenCalled();
+  });
+
+  test("does not navigate if switching the target model fails", async () => {
+    const client = createClient();
+    client.switchModel.mockImplementation(async () => {
+      throw new Error("model switch failed");
+    });
+    const navigateToSession = mock(() => {});
+
+    await expect(
+      executeTreeBranchAction(
+        {
+          currentSessionId: "sess_active",
+          action: { kind: "switch-session", sessionId: "sess_root" },
+          projectRoot: "/repo",
+          storageRoot: "/unused",
+          snapshot,
+        },
+        { client: client.client, navigateToSession, showToast: client.showToast },
+      ),
+    ).rejects.toThrow("model switch failed");
+
+    expect(navigateToSession).not.toHaveBeenCalled();
+    expect(client.deleteSession).not.toHaveBeenCalled();
+  });
+
+  test.each(["fork", "summary"])("removes a new %s if model selection fails", async (kind) => {
+    const client = createClient();
+    client.switchModel.mockImplementation(async () => {
+      throw new Error("model switch failed");
+    });
+    const navigateToSession = mock(() => {});
+    const writeSnapshot = mock(async (_root: string, value: TreeSnapshot) => value);
+    const writeRegistry = mock(async (_root: string, value: TreeRegistry) => value);
+    const input = {
+      currentSessionId: "sess_active",
+      plan: { sessionId: "sess_root", anchorMessageId: "msg_user", forkMessageId: "msg_user" },
+      projectRoot: "/repo",
+      storageRoot: "/unused",
+      snapshot,
+    };
+    const dependencies = {
+      client: client.client,
+      navigateToSession,
+      showToast: client.showToast,
+      generateSummary: async () => "Summary",
+      storage: {
+        readRegistry: async () => ({ version: 1 as const, sessions: {} }),
+        writeSnapshot,
+        writeRegistry,
+      },
+    };
+
+    await expect(
+      kind === "fork"
+        ? executeTreeBranchAction(
+            { ...input, action: { kind: "fork", plan: input.plan } },
+            dependencies,
+          )
+        : executeTreeSummaryFork({ ...input, conversation: "Conversation" }, dependencies),
+    ).rejects.toThrow("model switch failed");
+
+    expect(client.deleteSession).toHaveBeenCalledWith({ sessionID: "sess_child" });
+    expect(client.deleteSession).toHaveBeenCalledTimes(1);
+    expect(client.syntheticSession).not.toHaveBeenCalled();
+    expect(writeSnapshot).not.toHaveBeenCalled();
+    expect(writeRegistry).not.toHaveBeenCalled();
+    expect(navigateToSession).not.toHaveBeenCalled();
+  });
+
+  test("forks, persists tree state, and navigates without replaying prompt text", async () => {
+    const client = createClient();
+    const navigateToSession = mock(() => {
+      expect(client.switchModel).toHaveBeenCalledWith({
+        sessionID: "sess_child",
+        model: selectedModel,
+      });
+    });
     const storageRoot = "/state/opencode/plugins/opencode-tree/projects/repo-123";
     const writeSnapshot = mock(
       async (_storageRoot: string, nextSnapshot: TreeSnapshot) => nextSnapshot,
@@ -67,6 +217,7 @@ describe("executeTreeBranchAction", () => {
 
     await executeTreeBranchAction(
       {
+        currentSessionId: "sess_active",
         action: {
           kind: "fork",
           plan: {
@@ -100,6 +251,7 @@ describe("executeTreeBranchAction", () => {
       sessionID: "sess_root",
       before: "msg_user",
     });
+    expect(client.getSession).toHaveBeenCalledWith({ sessionID: "sess_active" });
     expect(writeSnapshot).toHaveBeenCalledWith(storageRoot, {
       version: 1,
       treeId: "tree_01",
@@ -132,10 +284,16 @@ describe("executeTreeBranchAction", () => {
 
   test("switches session without forking when action says switch-session", async () => {
     const client = createClient();
-    const navigateToSession = mock(() => {});
+    const navigateToSession = mock(() => {
+      expect(client.switchModel).toHaveBeenCalledWith({
+        sessionID: "sess_root",
+        model: selectedModel,
+      });
+    });
 
     await executeTreeBranchAction(
       {
+        currentSessionId: "sess_active",
         action: {
           kind: "switch-session",
           sessionId: "sess_root",
@@ -152,6 +310,7 @@ describe("executeTreeBranchAction", () => {
     );
 
     expect(navigateToSession).toHaveBeenCalledWith("sess_root");
+    expect(client.getSession).toHaveBeenCalledWith({ sessionID: "sess_active" });
     expect(client.forkSession).not.toHaveBeenCalled();
     expect(client.appendPrompt).not.toHaveBeenCalled();
   });
@@ -162,6 +321,7 @@ describe("executeTreeBranchAction", () => {
 
     await executeTreeBranchAction(
       {
+        currentSessionId: "sess_active",
         action: {
           kind: "noop",
         },
@@ -180,6 +340,8 @@ describe("executeTreeBranchAction", () => {
     expect(client.forkSession).not.toHaveBeenCalled();
     expect(client.appendPrompt).not.toHaveBeenCalled();
     expect(client.showToast).not.toHaveBeenCalled();
+    expect(client.getSession).not.toHaveBeenCalled();
+    expect(client.switchModel).not.toHaveBeenCalled();
   });
 
   test("shows toast for notice action", async () => {
@@ -187,6 +349,7 @@ describe("executeTreeBranchAction", () => {
 
     await executeTreeBranchAction(
       {
+        currentSessionId: "sess_active",
         action: {
           kind: "show-notice",
           message: "Select a message row first.",
@@ -211,6 +374,13 @@ describe("executeTreeBranchAction", () => {
 
   test("generates summary and injects it without replaying user text", async () => {
     const client = createClient();
+    client.syntheticSession.mockImplementation(async () => {
+      expect(client.switchModel).toHaveBeenCalledWith({
+        sessionID: "sess_child",
+        model: selectedModel,
+      });
+      return { id: "inbox_summary" };
+    });
     const navigateToSession = mock(() => {});
     const storageRoot = "/state/opencode/plugins/opencode-tree/projects/repo-123";
     const writeSnapshot = mock(
@@ -223,6 +393,7 @@ describe("executeTreeBranchAction", () => {
 
     await executeTreeSummaryFork(
       {
+        currentSessionId: "sess_active",
         plan: {
           sessionId: "sess_root",
           anchorMessageId: "msg_user",
@@ -265,6 +436,7 @@ describe("executeTreeBranchAction", () => {
       sessionID: "sess_root",
       before: "msg_user",
     });
+    expect(client.getSession).toHaveBeenCalledWith({ sessionID: "sess_active" });
     expect(client.syntheticSession).toHaveBeenCalledWith({
       sessionID: "sess_child",
       text: buildTreeBranchSummaryMessage("## Goal\nShip it"),
@@ -281,6 +453,7 @@ describe("executeTreeBranchAction", () => {
     await expect(
       executeTreeSummaryFork(
         {
+          currentSessionId: "sess_active",
           plan: {
             sessionId: "sess_root",
             anchorMessageId: "msg_user",
@@ -315,6 +488,7 @@ describe("executeTreeBranchAction", () => {
     await expect(
       executeTreeSummaryFork(
         {
+          currentSessionId: "sess_active",
           plan: {
             sessionId: "sess_root",
             anchorMessageId: "msg_user",

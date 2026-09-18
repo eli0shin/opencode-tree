@@ -22,6 +22,7 @@ export type TreeBranchStorage = {
 };
 
 export type ExecuteTreeBranchActionInput = {
+  readonly currentSessionId: string;
   readonly action: TreeBranchAction;
   readonly projectRoot: string;
   readonly storageRoot: string;
@@ -40,6 +41,7 @@ export type ExecuteTreeBranchActionDependencies = {
 };
 
 export type ExecuteTreeForkPlanInput = {
+  readonly currentSessionId: string;
   readonly plan: TreeBranchForkPlan;
   readonly projectRoot: string;
   readonly storageRoot: string;
@@ -55,6 +57,7 @@ export type CompleteTreeForkTransitionInput = {
 };
 
 export type ExecuteTreeSummaryForkInput = {
+  readonly currentSessionId: string;
   readonly plan: TreeBranchForkPlan;
   readonly projectRoot: string;
   readonly storageRoot: string;
@@ -87,12 +90,14 @@ export async function executeTreeBranchAction(
   }
 
   if (input.action.kind === "switch-session") {
+    await copyCurrentModel(input.currentSessionId, input.action.sessionId, dependencies.client);
     await dependencies.navigateToSession(input.action.sessionId);
     return;
   }
 
   const forked = await executeTreeForkPlan(
     {
+      currentSessionId: input.currentSessionId,
       plan: input.action.plan,
       projectRoot: input.projectRoot,
       storageRoot: input.storageRoot,
@@ -113,7 +118,7 @@ export async function executeTreeForkPlan(
   input: ExecuteTreeForkPlanInput,
   dependencies: ExecuteTreeBranchActionDependencies,
 ): Promise<TreeForkExecutionResult> {
-  const forkedSessionId = await forkTreeSession(input.plan, input.projectRoot, dependencies.client);
+  const forkedSessionId = await forkTreeSession(input, dependencies.client);
   await persistTreeFork(
     input.plan,
     forkedSessionId,
@@ -142,7 +147,7 @@ export async function executeTreeSummaryFork(
     { client: dependencies.client },
   );
 
-  const forkedSessionId = await forkTreeSession(input.plan, input.projectRoot, dependencies.client);
+  const forkedSessionId = await forkTreeSession(input, dependencies.client);
 
   try {
     await injectTreeBranchSummary(forkedSessionId, summary, input.projectRoot, dependencies.client);
@@ -173,13 +178,12 @@ export async function completeTreeForkTransition(
 }
 
 async function forkTreeSession(
-  plan: TreeBranchForkPlan,
-  projectRoot: string,
+  input: ExecuteTreeForkPlanInput,
   client: OpenCodeClient,
 ): Promise<string> {
   const forked = await client.session.fork({
-    sessionID: plan.sessionId,
-    before: plan.forkMessageId,
+    sessionID: input.plan.sessionId,
+    before: input.plan.forkMessageId,
   });
 
   const forkedSessionId = forked.id;
@@ -187,7 +191,27 @@ async function forkTreeSession(
     throw new Error("Fork request did not return a session ID");
   }
 
+  try {
+    await copyCurrentModel(input.currentSessionId, forkedSessionId, client);
+  } catch (error) {
+    await cleanupFailedTreeFork(forkedSessionId, input.projectRoot, client, error);
+  }
+
   return forkedSessionId;
+}
+
+async function copyCurrentModel(
+  currentSessionId: string,
+  targetSessionId: string,
+  client: OpenCodeClient,
+): Promise<void> {
+  if (currentSessionId === targetSessionId) return;
+
+  const current = await client.session.get({ sessionID: currentSessionId });
+  if (!current.model) return;
+
+  // Use the active session's full selection, not the selected message's session.
+  await client.session.switchModel({ sessionID: targetSessionId, model: current.model });
 }
 
 async function persistTreeFork(

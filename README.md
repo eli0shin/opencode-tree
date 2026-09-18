@@ -32,6 +32,8 @@ By default, tree state is saved [globally](#global-storage).
 
 Tool turns are hidden when `/tree` opens. Press `Ctrl+T` to show or hide them.
 
+Tree navigation keeps the current session's model and variant. Opening an existing session replaces its model selection with the current selection. New branches use the current selection, not the older source session's selection.
+
 To save it in the current project’s `.opencode` folder instead, set `storageScope` to `local`:
 
 ```json
